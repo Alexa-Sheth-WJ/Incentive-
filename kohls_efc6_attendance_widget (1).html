@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Attendance Program Reminder</title>
+<style>
+:root{
+  --ink:#FFFFFF; --soft:rgba(255,255,255,.86); --panel:rgba(4,14,34,.38); --panel-line:rgba(255,232,170,.35);
+  --gold1:#FFF4C9; --gold2:#F9CB4E; --gold3:#C9860E; --gold4:#F4BE3E; --gold-edge:#7A4A06;
+  --orange:#F07C22; --teal:#2BB3B1;
+  --ok:#3DBE7A; --warn:#F2B33D; --bad:#E5534B;
+  --lift:0%;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root{ --panel:rgba(4,14,34,.30); --lift:14%; color-scheme:light; }
+}
+/* Month palettes, drawn from the program flyers (Sept blue/orange, Oct maroon/gold) */
+.t-sep{--s1:#071F45;--s2:#0F64A3;--s3:#E8792B}
+.t-oct{--s1:#3A0812;--s2:#7E1F2E;--s3:#D8692A}
+.t-nov{--s1:#22093A;--s2:#5A2770;--s3:#E09422}
+.t-dec{--s1:#04291F;--s2:#0D5C44;--s3:#D3A72C}
+.t-jan{--s1:#08163A;--s2:#1E3478;--s3:#C9952A}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:transparent;height:100%}
+body{display:flex;align-items:flex-start;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,system-ui,sans-serif;
+  color:var(--ink);-webkit-font-smoothing:antialiased}
+.frame{position:relative;width:100%;max-width:520px;aspect-ratio:4/3;overflow:hidden;border-radius:18px;
+  container-type:size;container-name:frame;isolation:isolate;
+  background:
+    radial-gradient(120% 70% at 85% 110%, color-mix(in srgb,var(--s3) 75%,transparent) 0%, transparent 60%),
+    radial-gradient(90% 60% at 10% -10%, color-mix(in srgb,var(--s2) 80%,white var(--lift)) 0%, transparent 70%),
+    linear-gradient(130deg, color-mix(in srgb,var(--s1) 100%,white var(--lift)) 0%, color-mix(in srgb,var(--s2) 100%,white var(--lift)) 55%, var(--s3) 130%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+/* sparkle field */
+.stars{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.75;
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 18%,#fff 98%,transparent),radial-gradient(1px 1px at 28% 62%,#fff 98%,transparent),
+    radial-gradient(1.4px 1.4px at 44% 12%,#ffe7a3 98%,transparent),radial-gradient(1px 1px at 63% 38%,#fff 98%,transparent),
+    radial-gradient(1.3px 1.3px at 78% 22%,#fff 98%,transparent),radial-gradient(1px 1px at 88% 66%,#ffe7a3 98%,transparent),
+    radial-gradient(1.2px 1.2px at 7% 84%,#fff 98%,transparent),radial-gradient(1px 1px at 52% 88%,#fff 98%,transparent),
+    radial-gradient(1.1px 1.1px at 35% 34%,#fff 98%,transparent),radial-gradient(1px 1px at 95% 9%,#fff 98%,transparent)}
+.glint{position:absolute;z-index:0;width:1.1em;height:1.1em;pointer-events:none;
+  clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);
+  background:linear-gradient(160deg,#FFFFFF,#F9CB4E);
+  animation:twinkle 2.4s ease-in-out infinite}
+.glint.g1{top:9%;left:46%;font-size:12px}.glint.g2{top:30%;right:6%;font-size:16px;animation-delay:-.8s}
+.glint.g3{bottom:18%;left:4%;font-size:10px;animation-delay:-1.6s}
+/* balloons */
+.balloons{position:absolute;z-index:0;right:-2.5%;top:9%;width:24%;max-width:130px;pointer-events:none;
+  animation:float 5.5s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(0,0,0,.25))}
+/* confetti */
+.confetti{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-6%;width:7px;height:11px;border-radius:2px;opacity:0;
+  animation:fall var(--d,3s) cubic-bezier(.25,.6,.4,1) var(--w,0s) 1 forwards}
+
+.inner{position:absolute;inset:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr) auto auto;grid-template-areas:"top" "hero" "body" "pills" "fine";
+  gap:.6em;padding:1em 1.1em .8em;font-size:clamp(9px,min(3.2cqw,4.3cqh),18px)}
+.top{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:.6em;min-width:0}
+.kicker{font-size:.74em;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{flex:none;display:inline-flex;align-items:center;gap:.4em;font-size:.72em;font-weight:800;letter-spacing:.03em;
+  text-transform:uppercase;padding:.32em .8em;border-radius:999px;color:#3A2300;
+  background:linear-gradient(180deg,var(--gold1),var(--gold2) 55%,var(--gold4));box-shadow:0 2px 0 var(--gold-edge),0 4px 12px rgba(0,0,0,.25)}
+.chip .dot{width:.55em;height:.55em;border-radius:50%;background:#C2410C;animation:status 2s ease-in-out infinite}
+.hero{grid-area:hero;min-width:0;max-width:76%;padding-bottom:.12em}
+h1{margin:0;font-weight:900;text-transform:uppercase;letter-spacing:-.01em;line-height:.98;font-size:1.72em;text-wrap:balance}
+h1 .l1{display:block;color:#fff;text-shadow:0 .055em 0 rgba(0,0,0,.28),0 .12em .3em rgba(0,0,0,.35)}
+h1 .l2{display:block;font-size:1.18em}
+.gold{background:linear-gradient(180deg,var(--gold1) 0%,var(--gold2) 42%,var(--gold3) 58%,var(--gold4) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 .05em 0 var(--gold-edge)) drop-shadow(0 .12em .25em rgba(0,0,0,.35))}
+.sub{margin:.4em 0 0;font-size:.86em;line-height:1.3;font-weight:600;color:var(--soft);text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.body{grid-area:body;min-height:0;display:flex}
+.body>*{flex:1;min-width:0;min-height:0}
+
+/* month cards */
+.months{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5em;min-height:0}
+.mo{position:relative;container-type:size;container-name:card;min-height:0;border-radius:.85em;overflow:hidden;
+  background:linear-gradient(165deg,var(--s2) 0%,var(--s1) 78%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 .3em .8em rgba(0,0,0,.28)}
+.mo::before{content:"";position:absolute;inset:0 0 auto;height:.32em;background:var(--s3)}
+.mo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),transparent 40%);pointer-events:none}
+.mo-in{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:9cqh 4cqi 7cqh;text-align:center;gap:2cqh}
+.mo-name{font-weight:900;text-transform:uppercase;letter-spacing:.06em;font-size:clamp(8px,min(14cqi,10cqh),17px);line-height:1}
+.mo-name .full{display:none}
+.mo-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-height:0;gap:1.5cqh}
+.badge{width:min(34cqh,46cqi);aspect-ratio:1;flex:none}
+.hrs{display:flex;align-items:baseline;justify-content:center;gap:.18em;line-height:.9}
+.hrs b{font-size:min(30cqh,50cqi);font-weight:900}
+.hrs em{font-style:normal;font-weight:900;text-transform:uppercase;font-size:min(9cqh,12.5cqi);letter-spacing:.04em}
+.ribbon{font-weight:900;text-transform:uppercase;letter-spacing:.02em;font-size:min(8.5cqh,9.2cqi);line-height:1;max-width:100%;
+  padding:.42em .55em;border-radius:999px;white-space:nowrap;background:rgba(0,0,0,.28);color:#fff}
+.mo.earned{box-shadow:inset 0 0 0 2px var(--gold2),0 0 1.1em color-mix(in srgb,var(--gold2) 45%,transparent),0 .3em .8em rgba(0,0,0,.3)}
+.mo.earned .ribbon{color:#3A2300;background:linear-gradient(180deg,var(--gold1),var(--gold2) 55%,var(--gold4));box-shadow:0 2px 0 var(--gold-edge)}
+.mo.earned .mo-in{animation:stamp .6s cubic-bezier(.3,1.5,.5,1) both}
+.mo.earned .sheen{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.45) 50%,transparent 65%);transform:translateX(-120%);
+  animation:sheen 1.4s ease-out .7s 1 both}
+.mo.none{filter:saturate(.35) brightness(.82)}
+.mo.none .hrs{opacity:.9}
+.mo.current{box-shadow:inset 0 0 0 2px var(--s3),0 .3em .8em rgba(0,0,0,.3)}
+.mo.current .ribbon{background:var(--s3);color:#fff}
+.mo.current .hrs b{color:transparent;-webkit-text-stroke:.045em #fff}
+.mo.current .badge .hand{transform-origin:24px 24px;animation:spin 5.5s linear infinite}
+.mo.future,.mo.pending{opacity:.62}
+.mo.future .hrs b,.mo.pending .hrs b{color:transparent;-webkit-text-stroke:.04em rgba(255,255,255,.85)}
+@container card (min-width:150px){ .mo-name .full{display:inline} .mo-name .short{display:none} }
+@container card (max-height:115px){ .badge{display:none} }
+@container card (max-height:80px){ .ribbon{display:none} }
+
+/* reminder (no hours yet) */
+.goals{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:.6em;min-height:0}
+.gcard{border-radius:.85em;background:var(--panel);box-shadow:inset 0 0 0 1px var(--panel-line);overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.gcard h2{margin:0;padding:.45em .8em;font-size:.86em;font-weight:900;text-transform:uppercase;letter-spacing:.03em;color:#2A1A00;
+  background:linear-gradient(180deg,var(--gold1),var(--gold2) 55%,var(--gold4))}
+.gcard ol{list-style:none;margin:0;padding:.5em .8em;display:flex;flex-direction:column;justify-content:space-evenly;gap:.4em;flex:1}
+.gcard li{display:flex;align-items:center;gap:.6em;font-weight:900;text-transform:uppercase;font-size:.92em;line-height:1.05}
+.gcard li .n{color:var(--gold2)}
+.gcard svg{flex:none;width:2em;height:2em}
+.reset{border-radius:.85em;background:var(--panel);box-shadow:inset 0 0 0 1px var(--panel-line);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:.4em;padding:.5em;text-align:center;min-height:0}
+.reset svg{width:3.1em;height:3.1em;flex:none;animation:spin 5.5s linear infinite}
+.reset b{font-weight:900;text-transform:uppercase;line-height:1.02;font-size:.95em}
+.reset b span{display:block}
+
+/* finale */
+.finale{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:0}
+.finale .big{font-weight:900;font-size:min(4.6em,30cqh);line-height:1;letter-spacing:-.02em}
+
+.pills{grid-area:pills;display:flex;gap:.5em;flex-wrap:wrap;min-width:0}
+.pill{display:inline-flex;align-items:center;gap:.45em;font-size:.82em;font-weight:800;padding:.42em .85em;border-radius:999px;
+  background:var(--panel);box-shadow:inset 0 0 0 1px var(--panel-line);white-space:nowrap}
+.pill b{font-size:1.25em;font-weight:900;color:var(--gold2);font-variant-numeric:tabular-nums}
+.pill .live{width:.5em;height:.5em;border-radius:50%;background:var(--orange);animation:pulse 1.5s ease-in-out infinite}
+.fine{grid-area:fine;margin:0;font-size:.62em;font-weight:600;color:var(--soft);opacity:.9}
+.hidden{display:none!important}
+
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+@keyframes status{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes twinkle{0%,100%{opacity:.25;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1) rotate(45deg)}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6%) rotate(3deg)}}
+@keyframes fall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--x,0),112cqh) rotate(var(--r,540deg))}}
+@keyframes stamp{0%{transform:scale(.55);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes sheen{to{transform:translateX(120%)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important}.confetti{display:none}}
+
+/* Landscape */
+@container frame (aspect-ratio > 3/2){
+  .inner{font-size:clamp(9px,min(2.75cqw,5.2cqh),17px);gap:.45em;padding:.85em 1.1em .7em}
+  .hero{max-width:74%}
+  h1{font-size:1.55em}
+  .balloons{width:15%;top:13%;right:-1%}
+}
+/* Portrait */
+@container frame (aspect-ratio < 3/4){
+  .inner{font-size:clamp(9px,min(4.5cqw,2.6cqh),18px);gap:.8em;grid-template-rows:auto auto minmax(0,1fr) auto auto}
+  .top{flex-wrap:wrap;row-gap:.4em}
+  .hero{max-width:100%;padding-top:2.5em}
+  h1{font-size:1.9em}
+  .balloons{width:30%;top:5.5%;right:-3%}
+  .months{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65em}
+  .goals{grid-template-columns:1fr;grid-template-rows:minmax(0,1.5fr) minmax(0,1fr)}
+  .pills{flex-direction:column;align-items:stretch}
+}
+@container frame (max-height:250px){ .sub,.fine{display:none} .reset{display:none} .goals{grid-template-columns:1fr} .glint{display:none} }
+@container frame (max-width:340px) and (aspect-ratio > 3/4){ .reset{display:none} .goals{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF4C9"/><stop offset=".45" stop-color="#F9CB4E"/><stop offset=".6" stop-color="#C9860E"/><stop offset="1" stop-color="#F4BE3E"/></linearGradient>
+    <symbol id="clock" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="url(#gg)"/><circle cx="24" cy="24" r="16.5" fill="#0B1C3A" stroke="#7A4A06" stroke-width="1"/>
+      <g stroke="#F9CB4E" stroke-width="2" stroke-linecap="round"><path d="M24 10v3M24 35v3M10 24h3M35 24h3"/></g>
+      <path d="M24 24V15.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path class="hand" d="M24 24l6.5 4" stroke="#F9CB4E" stroke-width="2.6" stroke-linecap="round"/><circle cx="24" cy="24" r="2" fill="#fff"/></symbol>
+  </defs>
+</svg>
+<div class="frame t-sep" id="frame" role="region" aria-label="Attendance Program Reminder">
+  <div class="stars" aria-hidden="true"></div>
+  <i class="glint g1" aria-hidden="true"></i><i class="glint g2" aria-hidden="true"></i><i class="glint g3" aria-hidden="true"></i>
+  <svg class="balloons" viewBox="0 0 120 170" aria-hidden="true">
+    <path d="M38 78 Q46 120 60 168 M84 70 Q74 118 60 168 M62 52 Q62 110 60 168" stroke="rgba(255,255,255,.55)" stroke-width="1.2" fill="none"/>
+    <ellipse cx="62" cy="30" rx="22" ry="27" fill="#F07C22"/><ellipse cx="55" cy="20" rx="6" ry="9" fill="#fff" opacity=".35"/>
+    <ellipse cx="36" cy="56" rx="21" ry="25" fill="url(#gg)"/><ellipse cx="29" cy="47" rx="5.5" ry="8" fill="#fff" opacity=".45"/>
+    <ellipse cx="88" cy="50" rx="20" ry="24" fill="#F5F1E8"/><ellipse cx="82" cy="41" rx="5" ry="8" fill="#fff" opacity=".7"/>
+  </svg>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="inner">
+    <header class="top">
+      <span class="kicker">Attendance Program Reminder</span>
+      <span class="chip"><span class="dot" aria-hidden="true"></span><span id="chipText"></span></span>
+    </header>
+    <section class="hero" aria-live="polite">
+      <h1><span class="l1" id="h1a"></span><span class="l2 gold" id="h1b"></span></h1>
+      <p class="sub" id="sub"></p>
+    </section>
+    <section class="body">
+      <ol class="months hidden" id="months" aria-label="Recognition Hours Earned by month"></ol>
+      <div class="goals hidden" id="goals">
+        <div class="gcard">
+          <h2>Your monthly goals</h2>
+          <ol>
+            <li><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="9" y="7" width="26" height="34" rx="4" fill="url(#gg)"/><rect x="13" y="12" width="18" height="25" rx="2" fill="#0B1C3A"/><path d="M16 19l2.5 2.5 4-4M16 28l2.5 2.5 4-4" stroke="#F9CB4E" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="35" r="7" fill="#F07C22"/><circle cx="36" cy="35" r="2.6" fill="#0B1C3A"/></svg><span><span class="n">1.</span> Work your shifts</span></li>
+            <li><svg viewBox="0 0 48 48" aria-hidden="true"><use href="#clock"/></svg><span><span class="n">2.</span> Use less than 4&nbsp;hours of UA</span></li>
+          </ol>
+        </div>
+        <div class="reset">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6a18 18 0 1 1-15.6 9" fill="none" stroke="url(#gg)" stroke-width="5" stroke-linecap="round"/><path d="M3 10l6 7 7-5" fill="none" stroke="#F9CB4E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b><span>Each month is a</span><span class="gold">clean slate!</span></b>
+        </div>
+      </div>
+      <div class="finale hidden" id="finale"><span class="big gold" id="big"></span></div>
+    </section>
+    <footer class="pills" id="pills">
+      <span class="pill" id="p1"><span class="live" aria-hidden="true"></span><span id="p1t"></span></span>
+      <span class="pill" id="p2"><span id="p2t"></span></span>
+    </footer>
+    <p class="fine" id="fine">* Must be active at the end of the program to receive the incentive.</p>
+  </div>
+</div>
+<script>
+/*DATA-START*/
+const DATA = {"salt":"8a23fb40e7849d132259e19b2f1da58c","updated":"2026-11-17","resultsThrough":"October","r":{"c1bc794e8315":"EE--","66e857a7831e":"NN--","cf3f32f77c69":"NN--","3fb163185c00":"EE--","854dddc28730":"EN--","7cfaf91bd190":"EN--","9de5380c1363":"EE--","4105456984ce":"EN--","dfef3eb234b2":"EE--","7db80590dfb0":"EE--","21cd6cda6d45":"EE--","b49dacb7a3a5":"EN--","2034086ee502":"EE--","da926512bfdb":"EN--","e37a00c55f09":"NN--","2457450f1def":"NN--","a0e821e3eaaa":"EN--","aa1e65111d46":"EN--","991559b716d8":"NN--","3dde6db7f7e1":"EN--","017ce4f9d771":"NN--","2a8988f33380":"NN--","0dc039ab8747":"NN--","29b8ef890723":"NN--","22e216ec37f6":"EN--","c999c4d6ba6a":"EE--","c63efa0d63e8":"EN--","5bf82cc3f773":"NN--","48ad4b17aaac":"EE--","839037ef529f":"NN--","268ed3006e28":"NN--","3806a8a2b813":"EN--","8926ebac289b":"EN--","694718d42890":"EN--","009ad32d5f9c":"NN--","d55d3d7cd5ed":"EE--","5ed17bb36a23":"NN--","fa1e9474140c":"EN--","411aaaa79742":"EN--","97f6a9584ec3":"EN--","e06d3292daef":"EN--","21823ddcca81":"EE--","88be7368c484":"NN--","5b3748e9330b":"EE--","350094827561":"NN--","24a0b1f3a68d":"EE--","70d163df273e":"EN--","66484202ae9a":"EN--","d7d86d262b65":"NN--","6b844cf64d4a":"EN--","412c97c7aa40":"EE--","52907122461e":"EN--","8c52ec70ff22":"NE--","aaaf39b60577":"NE--","93a45dd8cd9a":"NN--","786b74c33e57":"NN--","d4c022ead1a1":"EE--","b0b2c37364eb":"NE--","f4105cca3d03":"EN--","e4b1f58c53dd":"NN--","e67eb97c55b6":"EE--","2918aa8afd7e":"EE--","fd05270c2650":"NN--","6adacc9efb45":"NN--","56a81a19f930":"NN--","62c33bd901d2":"NN--","d7dde525fe9e":"EN--","8791f45c5724":"EN--","0bfb8f9c3e2c":"EE--","2360f3771ae4":"NN--","c22f1abdeb30":"EN--","a25b774a1ee0":"EN--","4751c3905a93":"NN--","c094944d7599":"EE--","5960d5ba2e67":"EN--","8c110a2fca35":"NN--","57af4645588a":"EE--","732343bfe055":"EE--","170dc92f4326":"EE--","05e0fa81420f":"NE--","7473a0007dca":"NN--","81d9393846a3":"EE--","99a7c80b56ad":"EE--","ecb61391ce74":"EE--","064928e651d2":"NE--","06b1a3a6e187":"EN--","dd80b5b99812":"NN--","8b0ad6cc5bc3":"EN--","941e70730890":"EE--","c8f62a18a53d":"EE--","12ba104fa9af":"NN--","51b2e49c6bc2":"NN--","59b0f19bf762":"EN--","2ecc7ff1891f":"NE--","4142b2f2eca0":"EN--","5a469e45e6df":"EN--","a5822b1ca3cb":"NN--","81dc578bbf78":"EN--","42fd32f8bb55":"NN--","64fa2aff453c":"NN--","6e9edc007782":"NE--","e6638b57518f":"NN--","39041304eed4":"NE--","a40103912938":"EE--","f0cdb02f6d59":"EN--","f4a6700e7d90":"EE--","59fb238dd2ac":"EE--","5f0e2cea339f":"EN--","4071f1fe4d6b":"EN--","dff1d057312c":"NN--","6fddf97136e8":"EN--","71771e696bb7":"EN--","31fe1d3cf77e":"EN--","8bac04758185":"EN--","be50af3d6e3a":"EE--","f77519af5a3c":"NN--","77bba1dc9fd3":"EN--","eb861696a786":"NE--","2a9e16cdb54c":"EE--","4e9e313f6db5":"EE--","9af3d4976132":"EE--","d6082387427d":"NN--","dd1fcf4e983f":"EN--","5da661187996":"EN--","b9f96c440701":"EE--","fe7491f04e65":"EE--","c10416bef92e":"EN--","af94c2aadb80":"EE--","ef979f4bb3dc":"NE--","8d328f536bdc":"NN--","c440b8b5659d":"EE--","27b349f9b1fe":"EE--","20c03103b003":"EN--","9df9f578df57":"NN--","a12d21a6142f":"EN--","c4359b99da23":"EN--","360d318897d2":"EE--","dfb14489101d":"EE--","55ca51f3fbd8":"NE--","9b27cefdbcd6":"EE--","a6cc83c9c80b":"NN--","5190729e4063":"NN--","927c312cdf95":"NE--","58afab7b4756":"EN--","6b3843d80ef9":"EN--","783a452d087b":"NN--","0d9b5bbbd9a4":"EN--","dd4da246b45c":"EN--","697bf62da76d":"EN--","a4b005c51018":"EE--","88d1a1f604aa":"EN--","1713a532875f":"EE--","38a21f265007":"NN--","9ed77bcc4092":"EE--","87e00a79534e":"NE--","2c2fa5d5cff6":"EN--","18d8e67b50c0":"EN--","24bdd0fc09a5":"EN--","d063fdd60cd9":"NN--","fa08d6709f5e":"NE--","de38174dec49":"EN--","d8d303282958":"EN--","43fca2b37b44":"EN--","f3e133885ce4":"EN--","79ff248288d5":"EN--","6dae675d3560":"EE--","8e9be33587c4":"EE--","721a39e1cc16":"NN--","fdd90ee0788b":"EE--","0ea4a7611168":"EE--","6caee8612181":"EN--","3eebf83fae15":"NE--","6cdab06d5d57":"EE--","60f63c1d967e":"EE--","84cfe8142452":"NN--","3c272c4f0f7c":"EE--","1854661b3f2c":"NN--","ba72941e6bbe":"EE--","fb654a145c32":"EN--","b6b86785fb4c":"NN--","7c1eb1029eb3":"EE--","4c6dac6c2cf4":"EE--","71e26ad8a574":"EN--","3737800e9166":"NN--","8fd7942fd2c2":"NN--","797b9318c1d0":"NE--","dff73e158fd0":"EE--","530b2c709dc7":"EE--","d2602008dcf6":"NN--","a10ec9951a97":"NE--","b8ab9bc2179c":"EN--","5a53e6b42e08":"EE--","30f6625d1716":"NN--","3b3b988b05ee":"EN--","c62ba0fcff03":"EE--","6fa6f4a97997":"EE--","24f127596e8b":"EN--","659c92121059":"NN--","c01edf249ec7":"EN--","807720f356d6":"EN--","71def07440bd":"EE--","b63fd74edc42":"EE--","e4f62ae3bb1a":"NN--","23b45c8954ba":"NN--","08eb6180176f":"NN--","2c0b999969f3":"EE--","77da9738070b":"EE--","ee1297e7abf1":"EN--","b07f531615dc":"EE--","6a47d5823474":"EE--","834a1aa433d6":"EE--","16d3a63caf8f":"NN--","823a95486aec":"NE--","e0dddc8fee3d":"EE--","906b71898e81":"NE--","216f9bb2d410":"EN--","b246250137b3":"EN--","3b12fe111737":"EN--","bb8cc2d1562d":"NN--","663db0fca169":"EN--","7a3c5ae38f79":"NE--","4861f864849a":"EE--","19e7268b2348":"NE--","7d513bbfe02c":"EE--","e29d077b5854":"NN--","ad334902f5eb":"EE--","fa3a3dfe8177":"EN--","393a5f83bc8f":"EN--","526adbb6b7fe":"EN--","2bcba4d34fcf":"EE--","bf834ff13e3c":"EN--","1df38872cc0e":"NN--","8f01b2b39300":"EE--","127e4d76a8f3":"EE--","915676418fba":"NN--","5c050da32106":"NE--","dbe2d8c62916":"EE--","0888e372e39f":"NE--","029dd4746f30":"NE--","021940b531e8":"EE--","4b7a6c6de313":"EE--","58a9255a4283":"EN--","fb364fce353b":"EN--","34ee5f6721e5":"EN--","6e7bc99ef3f7":"EN--","5f040f7bb293":"EE--","6a23fe002995":"EN--","23c0aa3c50e4":"NE--","d2c297681ad8":"NN--","fc1b435fd5be":"NE--","2f4f496432c3":"NN--","f48e94a042e5":"EE--","c006c9dfb812":"EE--","d23dbdb1bd04":"EN--","140ecac43cd7":"EE--","a8474d99ef19":"EE--","c67047dc9a3c":"EE--","9471387638c0":"EN--","4f39b2b0ca7f":"EN--","7c13ede6f728":"EE--","1f7d2af5ef81":"NN--","3e446c6c747e":"EN--","4e5baaba9790":"NE--","4f6fbaa4b1f7":"NE--","23e40c39f49c":"EE--","7182783cc50e":"EN--","d654dcf38edc":"EN--","2d8bce182749":"EN--","7c66141ab5c2":"EN--","5766af009182":"EE--","0d0f8d438a53":"EE--","118b6cc3b2b6":"EE--","a884935ca197":"EE--","ee6a3e3df560":"EE--","5956c28658e1":"EE--","36702749470d":"EN--","c83cf35ce610":"EE--","35e99ddba283":"NN--","0c8a0e917483":"EE--","3bb98ec02870":"EN--","6f8effa7e767":"EN--","9999364bfdab":"NE--","0003d6902983":"NN--","93737dd94234":"NE--","38a8223e6012":"NE--","2f1ca6cf7a95":"NN--","40582d6e127e":"EN--","21d792954dee":"EN--","3b695ff297c4":"EE--","cf4236066656":"EE--","7e2339184faf":"EN--","6b1adcd7ee28":"EE--","c66cd2836327":"EE--","a78e2701685b":"EE--","2a682bfe7e7b":"EE--","68476a5fc184":"EE--","57e29e47eac1":"NN--","05299c7aaa29":"EN--","d218c50a8ba4":"EE--","b2da522e9c68":"EE--","94a1aabcb1f2":"EE--","c81ed017fee7":"EE--","94a1caade08a":"EE--","3746b22b3c06":"NE--","d74df4db416d":"EN--","3deba8e71c32":"NE--","1676c377486e":"EN--","8dbb662efdd1":"EE--","cadfc45b07bd":"NN--","80117052bed2":"EN--","057deabd4b64":"EN--","4f2192651a4d":"EN--","05b63dcafd5b":"EE--","f2e5ec750788":"EE--","7be24312fd02":"EN--","500c62338ac7":"EN--","3cc46bbdc76e":"EN--","f0e85b9fc411":"EE--","b19ee3bc68fd":"NN--","ee4e16e68666":"EN--","274a25ec9adc":"EN--","a81b5e650e66":"NN--","d86b4f41c998":"NN--","76c92b4b9273":"EE--","ec9a8280c935":"EN--","a36e529f125d":"EN--","71a639444508":"EN--","060a36242898":"NN--","a430cf3dac30":"EE--","f1222e0e4b6e":"EN--","5b18a728b080":"EE--","4d11db2849a1":"EE--","b20e9792245b":"EN--","f28d9f0fa444":"EE--","1f1f87473bdc":"EE--","ecbad4f48f24":"EE--","0a83cbc0b36c":"EN--","a4866886d9fe":"EE--","375c087d3d8b":"EN--","7632a8a6e4b9":"NN--","b23c604fdf11":"NE--","fdb33dbd6ec6":"EN--","161c751ce36a":"EE--","864c7715e7b4":"EE--","263bc73789f5":"NN--","c16e7c5c8594":"EE--","13b77745eee5":"EN--","ad0fb59b2e4d":"EN--","427f21079283":"EE--","6b0db026c2e0":"EN--","81db79714006":"NN--","e9862d0337db":"EE--","201f29d87672":"EE--","d0d1f110435b":"EE--","ce29eacd8080":"EE--","77a7c4e5d759":"EE--","3fa6fac597d8":"EE--","fb2250ade4c7":"NN--","22c3647c3717":"EE--","31988fb85077":"NE--","a5419b173326":"EE--","5073908d7cf9":"EN--","5be8f5dbdc1d":"EE--","36c764441db1":"NE--","7b9d2008b6f5":"EN--","28f497e5184e":"NN--","ca6701604d1d":"NE--","aa7677b58fff":"EE--","4de076850ea4":"EN--","f9a371c13549":"NN--","ca60ff92a2be":"EN--","507b8879c88e":"EE--","df557608b87e":"NN--","a0cb87567e8f":"NE--","7516f0d44239":"EN--","c7584c6f479e":"EE--","a1f7305ccf3b":"EN--","abd90c0be6fa":"EN--","ddd8e5d33225":"EE--","2c73f91c33b7":"NE--","219fff813d92":"NN--","e13fd77d0db1":"EN--","f464a843cfcf":"EN--","7b9296c6ddcb":"EN--","62abf273fbaa":"EN--","1b309f19381f":"EN--","d6d870a79207":"NN--","1232598dfe9b":"EE--","8060570df90f":"EN--","ea9448b16dd2":"EE--","e3cd0c026828":"EE--","734d685ecf54":"NE--","32bf9cafa473":"NE--","1eef0ad81ca0":"EN--","f67c3345834e":"NE--","07aba3618360":"NN--","2aa4969b535c":"EN--","b01727f94bbf":"EN--","397dc84b8b12":"NN--","06b04e9b7f17":"EN--","dde1709c85cf":"EE--","088fdf2a79a7":"EN--","4ba4986eee83":"NN--","f074329aac72":"NN--","92aa19c49126":"EE--","5d9fc90ecc4e":"EN--","ca27e8cdda04":"NN--","fa3afc122e1f":"EN--","828ae75b1226":"EN--","8b3f6a7b69b0":"EE--","832727366af4":"EE--","5231daaee62f":"EN--","bedaf4042721":"NN--","f25cd7473fee":"EE--","c3d1b3c92f96":"NN--","30bcd65b158f":"EN--","94b5882fa91a":"NN--","3ac3d3c59a06":"EN--","255a7afb302f":"EN--","0dc1fd20d5a0":"EE--","9fcd405311ff":"NE--","9b4e307b61c7":"EN--","1f77beb51c91":"NN--","2a100fbe1e44":"NE--","283ac2d645c5":"NN--","76bcd187ad0d":"NN--","bd2628504061":"NN--","da982a3544de":"EN--","80f56cdf206e":"EE--","f8716f085753":"NE--","c3f8843808c7":"NN--","aa67508d837c":"NN--","d14090592f50":"EN--","6d98acb9f996":"NN--","2ed4432160ed":"EE--","8b26892da4ee":"EE--","470c68616791":"EN--","a6e92168028d":"NE--","96a1fb059f02":"NN--","ac434983407a":"EE--","14c3c83d2c4a":"EE--","45ead86af087":"EE--","e94a0a1f6f86":"NN--","fb0fa3d993af":"NN--","0dd7f689336c":"EE--","774032a907c1":"EE--","bf9b8f9e8bb6":"NE--","9d01aed917ec":"EE--","47f207c38043":"EE--","a4571bde1a21":"NN--","c603ed7b7634":"NN--","6830fc0e80cb":"EE--","cf7d47bffdf4":"EE--","7dfcc9e50746":"NE--","32898fb07a02":"EE--","4aba2bb6b1b9":"EN--","9e594fe61550":"NN--","692ff01e08e7":"EN--","822b9c62218d":"NN--","12f1d377a473":"EE--","e7f08212a93e":"EN--","079e4ed3c0a7":"EN--","9f0b78bfb228":"EN--","f2dec985c90f":"NE--","f97cff0c9b93":"NN--","afaaeec87070":"NE--","f1cc4ec5873e":"EE--","922e258d13b6":"EE--","58a1314fcf45":"EN--","cb2db07ea853":"NN--","0c2973b3793e":"EE--","072417527516":"NE--","eb5d5793496e":"EN--","c5102959b729":"NN--","edb101a425bf":"EE--","315c8d104ef9":"NE--","9b44f6c231dd":"EN--","6eee2026d648":"EN--","8d4e7e3655ea":"NN--","ce4640c9033e":"EN--","e0f121f78c35":"EE--","89e54b330aaa":"EN--","a35ffd68ee5b":"EN--","dfeb54bf681a":"EE--","951ff349084d":"EE--","90ec3b751114":"NN--","a55020565733":"NN--","e7949a94d24f":"EN--","d045c45e8e9b":"NN--","a2cd1e3a8ac1":"EE--","9b8b72799306":"EN--","59894b1e5149":"EN--","4091474dc1a2":"EN--","2ba6756cc251":"NE--","864d8bdaf54f":"NN--","1142ba63dcc6":"EN--","9d57457d42b0":"NN--","07de8bb1574d":"EN--","712490fee9a3":"EN--","bf2b62eab0ea":"EN--","1de688ac2c02":"EN--","531f99bd01c7":"EN--","086b22f9d39b":"NN--","b654f1b8cd3f":"NN--","c194e6d82b9e":"NN--","a55057db7baa":"NE--","709ef7351257":"EN--","3c3a5bd7476a":"EN--","1c5f5dab0eb7":"EN--","66d60f7f2e59":"NE--","41ffc9ab8517":"EN--","fa884d0d30b5":"EN--","5e8b974b1556":"NN--","9af2d437d5fd":"EN--","d49260f2fe03":"EE--","2151a911f856":"NN--","c78dc91a8cb7":"NN--","4781cb395099":"EE--","130464b88bf7":"EN--","ac5648f4d7a1":"NE--","8b76b704d64b":"EN--","c1c6d348ed71":"EE--","9df01629353f":"EN--","c43db8f1967a":"EE--","652081f26acb":"NN--","6653e842c03c":"NN--","e9c10e7317fb":"EE--","9c2edffd0210":"NE--","51b6e762c01a":"EE--","2932bf3f8c66":"EN--","f3e4cc0399b3":"NN--","6c0874906491":"NN--","2230e07bf293":"EN--","3ae587ddfc6e":"NN--","bc21908a01e4":"EE--","027ee8274700":"NN--","fff4adbaaf5c":"EN--","a941c734c8be":"EE--","327beb878903":"EN--","9f36baef7b89":"EN--","cc158cc1d228":"EN--","4bf341146fbf":"EN--","ff517765264d":"EN--","a5384a69286b":"EN--","9e1c31bea427":"EE--","ebbc7ab41d01":"NN--","f45138bb73f1":"EN--","dd76024a7cfc":"EN--","78497c1a61cc":"NE--","397550edbf36":"NN--","978a52bdfed4":"NE--","f2588f3b02fa":"EN--","6d004e89a735":"NN--","aa73e57cec32":"NN--","8a4cb0cc6a45":"EN--","4e8c01f2e657":"NN--","e40af115b7de":"EN--","a72b1a347662":"EN--"}};
+/*DATA-END*/
+
+const params = new URLSearchParams(window.location.search);
+const vars = {
+  externalLocationId: params.get('externalLocationId') || null,
+  externalLocationCode: params.get('externalLocationCode') || null,
+  address: params.get('address') || null,
+  city: params.get('city') || null,
+  stateOrProvince: params.get('stateOrProvince') || null,
+  country: params.get('country') || null,
+  zipCode: params.get('zipCode') || null,
+  externalRegionId: params.get('externalRegionId') || null,
+  externalRegionCode: params.get('externalRegionCode') || null,
+  employeeId: params.get('employeeId') || null,
+  employeeCode: params.get('employeeCode') || null,
+  username: params.get('username') || null,
+  language: params.get('language') || 'en',
+  aspectRatio: params.get('aspectRatio') || 'standard',
+  // custom: QA-only date override (ISO timestamp). Ignored if invalid.
+  previewDate: params.get('previewDate') || null
+};
+const RATIOS = { standard: '4 / 3', square: '1 / 1', landscape: '16 / 9', portrait: '9 / 16' };
+const RATIO_NUM = { standard: 4/3, square: 1, landscape: 16/9, portrait: 9/16 };
+const frame = document.querySelector('.frame');
+frame.style.aspectRatio = RATIOS[vars.aspectRatio] || RATIOS.standard;
+function fit(){
+  const r = RATIO_NUM[vars.aspectRatio] || RATIO_NUM.standard;
+  const w = Math.min(document.documentElement.clientWidth || 520, 520, (window.innerHeight || 9999) * r);
+  frame.style.width = Math.max(200, Math.floor(w)) + 'px';
+}
+fit(); window.addEventListener('resize', fit);
+
+// Compact SHA-256 (ASCII input) so the lookup works on any host, including file://
+function sha256(s){function rr(v,a){return(v>>>a)|(v<<(32-a))}var P=Math.pow,M=P(2,32),i,j,out='',w=[],L=s.length*8,h=[],k=[],n=0,C={};
+for(var c=2;n<64;c++){if(!C[c]){for(i=0;i<313;i+=c)C[i]=c;h[n]=(P(c,.5)*M)|0;k[n++]=(P(c,1/3)*M)|0}}
+h=h.slice(0,8);s+='\x80';while(s.length%64-56)s+='\x00';for(i=0;i<s.length;i++){j=s.charCodeAt(i);w[i>>2]|=j<<((3-i)%4)*8}
+w[w.length]=(L/M)|0;w[w.length]=L;for(j=0;j<w.length;){var W=w.slice(j,j+=16),o=h;h=h.slice(0,8);
+for(i=0;i<64;i++){var a=W[i-15],b=W[i-2],A=h[0],E=h[4];var t1=h[7]+(rr(E,6)^rr(E,11)^rr(E,25))+((E&h[5])^(~E&h[6]))+k[i]+(W[i]=i<16?W[i]:(W[i-16]+(rr(a,7)^rr(a,18)^(a>>>3))+W[i-7]+(rr(b,17)^rr(b,19)^(b>>>10)))|0);
+var t2=(rr(A,2)^rr(A,13)^rr(A,22))+((A&h[1])^(A&h[2])^(h[1]&h[2]));h=[(t1+t2)|0].concat(h);h[4]=(h[4]+t1)|0}
+for(i=0;i<8;i++)h[i]=(h[i]+o[i])|0}for(i=0;i<8;i++)for(j=3;j+1;j--){var x=(h[i]>>(j*8))&255;out+=(x<16?'0':'')+x.toString(16)}return out}
+
+function normId(v){ if(!v) return null; v=String(v).trim(); if(!/^\d+$/.test(v)) return null; return v.replace(/^0+(?=\d)/,''); }
+function lookup(id){ const n=normId(id); if(!n||!DATA.salt) return null; return DATA.r[sha256(DATA.salt+':'+n).slice(0,12)] || null; }
+const record = lookup(vars.employeeId);   // e.g. "EN--" : E earned, N not earned, - not posted yet
+
+const MONTHS = [
+  {y:2026,m:8,key:'sep',short:'Sept',full:'September'},{y:2026,m:9,key:'oct',short:'Oct',full:'October'},
+  {y:2026,m:10,key:'nov',short:'Nov',full:'November'},{y:2026,m:11,key:'dec',short:'Dec',full:'December'}];
+const START = new Date(2026,8,1), EARN_END = new Date(2027,0,1), SHOW_END = new Date(2027,1,1);
+const pd = vars.previewDate ? new Date(vars.previewDate) : null;
+const offset = (pd && !isNaN(pd)) ? pd.getTime() - Date.now() : 0;
+const now = () => new Date(Date.now() + offset);
+
+const $ = id => document.getElementById(id);
+const show = (el,on) => el.classList.toggle('hidden',!on);
+const hrWord = n => n===1 ? 'hour' : 'hours';
+const dayWord = n => n===1 ? 'day' : 'days';
+let lastKey = '';
+
+function confetti(){
+  const box = $('confetti'); if(box.childElementCount) return;
+  const cols = ['#F9CB4E','#F07C22','#FFFFFF','#2BB3B1','#FFF4C9','#E5534B','#4FA3E0'];
+  for(let i=0;i<42;i++){
+    const c = document.createElement('i');
+    const left = (i*37)%100 + ((i*13)%7)/7;              // spread evenly, deterministic
+    c.style.left = left+'%';
+    c.style.background = cols[i%cols.length];
+    c.style.setProperty('--d',(2.6+(i%5)*.35)+'s');
+    c.style.setProperty('--w',((i%9)*.09)+'s');
+    c.style.setProperty('--x',(((i%7)-3)*9)+'px');
+    c.style.setProperty('--r',(360+(i%4)*180)*(i%2?1:-1)+'deg');
+    if(i%3===0){c.style.width='6px';c.style.height='6px';c.style.borderRadius='50%';}
+    box.appendChild(c);
+  }
+}
+
+function card(m,i,state,daysLeft){
+  const li = document.createElement('li');
+  li.className = `mo t-${m.key} ${state}`;
+  const map = {
+    earned:  {b:'1', em:'hour',  rib:'Earned!',      aria:`${m.full}: 1 hour earned`},
+    none:    {b:'0', em:'hours', rib:'Not earned',   aria:`${m.full}: 0 hours earned`},
+    current: {b:'1', em:'hour',  rib:`${daysLeft} ${dayWord(daysLeft)} left`, aria:`${m.full}: in progress, 1 hour up for grabs, ${daysLeft} ${dayWord(daysLeft)} left`},
+    future:  {b:'1', em:'hour',  rib:'Up next',      aria:`${m.full}: up next`},
+    pending: {b:'?', em:'hour',  rib:'Pending', aria:`${m.full}: results coming soon`}
+  }[state];
+  li.setAttribute('aria-label', map.aria);
+  li.innerHTML = `<div class="mo-in" aria-hidden="true">
+      <span class="mo-name"><span class="short">${m.short}</span><span class="full">${m.full}</span></span>
+      <span class="mo-mid"><svg class="badge" viewBox="0 0 48 48"><use href="#clock"/></svg>
+        <span class="hrs"><b class="${state==='earned'?'gold':''}">${map.b}</b><em>${map.em}</em></span></span>
+      <span class="ribbon">${map.rib}</span></div>${state==='earned'?'<span class="sheen" aria-hidden="true"></span>':''}`;
+  return li;
+}
+
+function render(){
+  const t = now();
+  const codes = record || '----';
+  const earned = [...codes].filter(c=>c==='E').length;
+  const curIdx = MONTHS.findIndex(x=>t.getFullYear()===x.y && t.getMonth()===x.m);
+  const phase = t < START ? 'pre' : t < EARN_END ? 'active' : t < SHOW_END ? 'complete' : 'closed';
+  const lastDay = curIdx>=0 ? new Date(MONTHS[curIdx].y, MONTHS[curIdx].m+1, 0).getDate() : 0;
+  const daysLeft = curIdx>=0 ? lastDay - t.getDate() + 1 : 0;   // includes today
+  const key = [phase,curIdx,daysLeft,t.toDateString()].join('|');
+  if(key===lastKey) return; lastKey = key;
+
+  const frame = $('frame');
+  frame.className = 'frame t-' + (phase==='active' ? MONTHS[curIdx].key : phase==='pre' ? 'sep' : 'jan');
+  let view = 'none', party = false, pills = false, fine = false;
+  const set = (chip,a,b,sub) => { $('chipText').textContent=chip; $('h1a').textContent=a; $('h1b').textContent=b; $('sub').textContent=sub; };
+
+  if(phase==='pre'){
+    const d = Math.ceil((START - t)/86400000);
+    set('Coming soon','Get ready to earn','Recognition hours!','Earn 1 hour every month you hit both goals, September through December.');
+    view='goals'; pills=true;
+    $('p1t').innerHTML = `Starts in <b>${d}</b> ${dayWord(d)}`; $('p2t').innerHTML = `<b>4</b> hours up for grabs`;
+  } else if(phase==='active'){
+    const m = MONTHS[curIdx], isFinal = curIdx===3, left = 4-curIdx;
+    const chip = isFinal ? 'Final month!' : `${m.full} 2026`;
+    if(earned>0){
+      set(chip, "You've earned", `${earned} ${hrWord(earned)}!`,
+          isFinal ? 'of Associate Recognition Time. December is your last chance to earn one more!'
+                  : 'of Associate Recognition Time. Keep showing up! More opportunities to earn await you.');
+      view='months'; party=true;
+    } else {
+      set(chip, "There's still time", 'to earn hours!',
+          isFinal ? 'December is the final month. Hit both goals to earn 1 hour of Associate Recognition Time.'
+                  : 'Hit both goals this month to earn 1 hour of Associate Recognition Time.');
+      view='goals';
+    }
+    pills=true; fine=earned>0;
+    $('p1t').innerHTML = daysLeft===1 ? `<b>Last day</b> to earn in ${m.full}!` : `<b>${daysLeft}</b> ${dayWord(daysLeft)} left in ${m.full}`;
+    $('p2t').innerHTML = isFinal ? `<b>Final</b> month to earn` : `<b>${left}</b> months left to earn`;
+  } else if(phase==='complete'){
+    if(earned>0){
+      set('Program complete','Congratulations!',`You earned ${earned} ${hrWord(earned)}!`,
+          codes[3]==='-' ? 'December results will appear here once they are posted.' : 'of Associate Recognition Time. Thank you for showing up!');
+      view='months'; party=true; fine=true;
+    } else if(record && codes[3]==='-'){
+      set('Program complete','Final results','Coming soon!','December results will appear here once they are posted.');
+    } else {
+      set('Program complete','Happy','New Year!','The attendance program is over. Thanks for being part of the pilot!');
+      view='finale'; $('big').textContent='2027'; party=true;
+    }
+  } else {
+    set('Program ended','Thank you','for showing up!','The attendance program has ended. Happy New Year!');
+    view='finale'; $('big').textContent='2027';
+  }
+
+  const months = $('months');
+  if(view==='months'){
+    months.innerHTML = '';
+    MONTHS.forEach((m,i)=>{
+      const c = codes[i];
+      let st = c==='E' ? 'earned' : c==='N' ? 'none'
+             : (phase==='active' && i===curIdx) ? 'current'
+             : (phase==='active' && i>curIdx) ? 'future' : 'pending';
+      months.appendChild(card(m,i,st,daysLeft));
+    });
+  }
+  show(months,view==='months'); show($('goals'),view==='goals'); show($('finale'),view==='finale');
+  show($('pills'),pills); show($('fine'),fine);
+  if(party) confetti();
+}
+render();
+setInterval(render, 60000);   // days-remaining only; re-checks for day/month rollover each minute
+</script>
+</body>
+</html>
