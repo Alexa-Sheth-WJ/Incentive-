@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Attendance Program Reminder</title>
+<style>
+:root{
+  --bg:#0D2440; --bg2:#103B57; --ink:#F6F1E7; --muted:#A9BDCD; --line:rgba(255,255,255,.16);
+  --panel:rgba(255,255,255,.07); --gold:#F2B33D; --gold-ink:#0D2440; --orange:#F07C22; --teal:#2BB3B1;
+  --maroon:#8E2236; --track:rgba(255,255,255,.14);
+  --ok:#3DBE7A; --warn:#F2B33D; --bad:#E5534B;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#FFFFFF; --bg2:#E9F3F6; --ink:#0D2440; --muted:#4A6175; --line:rgba(13,36,64,.16);
+    --panel:#F1F6F9; --gold:#D4920F; --gold-ink:#FFFFFF; --orange:#D9630F; --teal:#127A7A;
+    --track:rgba(13,36,64,.12); color-scheme:light;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:transparent;height:100%}
+body{display:flex;align-items:flex-start;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,system-ui,sans-serif;
+  color:var(--ink);-webkit-font-smoothing:antialiased}
+.frame{position:relative;width:100%;max-width:520px;aspect-ratio:4/3;overflow:hidden;border-radius:16px;
+  container-type:size;container-name:frame;
+  background:linear-gradient(140deg,var(--bg) 0 58%,var(--bg2) 100%)}
+.frame::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;z-index:1;
+  background:linear-gradient(90deg,var(--teal),var(--orange) 55%,var(--gold))}
+.inner{position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"top" "main" "meta" "fine";
+  gap:.75em;padding:1.15em 1.2em .9em;font-size:clamp(9px,min(3.3cqw,4.4cqh),18px)}
+.top{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:.6em;min-width:0}
+.title{font-size:.82em;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{flex:none;display:inline-flex;align-items:center;gap:.45em;font-size:.74em;font-weight:700;
+  padding:.3em .75em;border-radius:999px;border:1px solid var(--orange);color:var(--ink)}
+.chip .dot{width:.55em;height:.55em;border-radius:50%;background:var(--orange);animation:status 2s ease-in-out infinite}
+.chip.done{border-color:var(--gold)} .chip.done .dot{background:var(--gold);animation:none}
+.main{grid-area:main;display:flex;flex-direction:column;justify-content:center;gap:.5em;min-height:0}
+h1{margin:0;font-size:1.38em;line-height:1.15;font-weight:800;letter-spacing:-.015em;text-wrap:balance}
+.sub{margin:0;font-size:.88em;line-height:1.38;color:var(--muted);max-width:34em}
+.metric{font-size:.72em;color:var(--muted);margin:.15em 0 -.2em}
+.tokens{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.55em}
+.tok{display:flex;flex-direction:column;align-items:center;gap:.22em;min-width:0;text-align:center}
+.dial{position:relative;width:min(100%,4.2em,17cqh);aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
+  border:.17em solid var(--track);font-weight:800;font-size:1em}
+.dial b{font-size:1.45em;line-height:1;font-variant-numeric:tabular-nums}
+.tok .m{font-size:.8em;font-weight:700}
+.tok .c{font-size:.68em;color:var(--muted);white-space:nowrap}
+.tok.earned .dial{background:var(--gold);border-color:var(--gold);color:var(--gold-ink);
+  box-shadow:0 0 0 .22em color-mix(in srgb,var(--gold) 22%,transparent)}
+.tok.earned .c{color:var(--ink);font-weight:600}
+.tok.none .dial{border-style:dashed;border-color:var(--muted);color:var(--muted)}
+.tok.current .dial{border-color:transparent;color:var(--orange)}
+.tok.current .dial::before{content:"";position:absolute;inset:-.17em;border-radius:50%;
+  background:conic-gradient(var(--orange) calc(var(--p,0) * 1turn),var(--track) 0);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - .19em),#000 calc(100% - .17em));
+          mask:radial-gradient(farthest-side,transparent calc(100% - .19em),#000 calc(100% - .17em))}
+.tok.future .dial,.tok.pending .dial{color:var(--muted);opacity:.75}
+.goals{list-style:none;margin:.1em 0 0;padding:0;display:grid;gap:.45em}
+.goals li{display:flex;align-items:center;gap:.65em;font-weight:700;font-size:.98em}
+.goals .ic{flex:none;width:1.9em;height:1.9em;border-radius:.5em;display:grid;place-items:center;background:var(--panel)}
+.goals svg{width:1.15em;height:1.15em;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.meta{grid-area:meta;display:flex;gap:.6em;min-width:0}
+.box{flex:1 1 0;min-width:0;padding:.5em .75em;border-radius:.7em;background:var(--panel);display:flex;flex-direction:column;justify-content:center;gap:.12em}
+.box.cd{flex-grow:1.55}
+.lbl{font-size:.7em;color:var(--muted);display:flex;align-items:center;gap:.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.val{font-size:1.3em;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.01em}
+.val small{font-size:.62em;font-weight:700;color:var(--muted);margin:0 .25em 0 .08em}
+.live{width:.5em;height:.5em;border-radius:50%;background:var(--orange);animation:pulse 1.5s ease-in-out infinite}
+.fine{grid-area:fine;margin:0;font-size:.64em;line-height:1.3;color:var(--muted)}
+.hidden{display:none!important}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+@keyframes status{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes land{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.tok.earned .dial{animation:land .5s cubic-bezier(.3,1.4,.5,1) both}
+.tok:nth-child(2) .dial{animation-delay:.08s}.tok:nth-child(3) .dial{animation-delay:.16s}.tok:nth-child(4) .dial{animation-delay:.24s}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+/* Landscape: two columns */
+@container frame (aspect-ratio > 3/2){
+  .dial{width:min(100%,3.8em,24cqh)}
+  .inner{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:"top top" "main meta" "fine fine";font-size:clamp(9px,min(2.9cqw,5.6cqh),17px);gap:.6em 1em}
+  .meta{flex-direction:column;justify-content:center}
+  .box,.box.cd{flex:0 0 auto}
+}
+/* Portrait: roomier tokens */
+@container frame (aspect-ratio < 3/4){
+  .inner{font-size:clamp(9px,min(4.6cqw,2.8cqh),18px);gap:.9em}
+  .top{flex-wrap:wrap;row-gap:.4em}
+  .tokens{grid-template-columns:repeat(2,minmax(0,1fr));gap:1em .8em}
+  .dial{width:min(100%,5.2em,10cqh)}
+  h1{font-size:1.55em}
+}
+@container frame (max-height: 230px){ .sub,.fine,.metric{display:none} .inner{gap:.45em;padding-top:.9em} }
+@container frame (max-height: 320px) and (aspect-ratio > 3/2){ .sub{display:none} }
+</style>
+</head>
+<body>
+<div class="frame" role="region" aria-label="Attendance Program Reminder">
+  <div class="inner">
+    <header class="top">
+      <div class="title">Attendance Program Reminder</div>
+      <div class="chip" id="chip"><span class="dot" aria-hidden="true"></span><span id="chipText"></span></div>
+    </header>
+    <section class="main" aria-live="polite">
+      <h1 id="headline"></h1>
+      <p class="sub" id="sub"></p>
+      <div class="metric hidden" id="metric">Recognition Hours Earned</div>
+      <ol class="tokens hidden" id="tokens"></ol>
+      <ul class="goals hidden" id="goals">
+        <li><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M8.5 11l2 2 4-4M8.5 17h7"/></svg></span>Work your scheduled shifts</li>
+        <li><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Use less than 4 hours of UA</li>
+      </ul>
+    </section>
+    <footer class="meta" id="meta">
+      <div class="box cd" id="cdBox">
+        <span class="lbl"><span class="live" aria-hidden="true"></span><span id="cdLabel">Time left this month</span></span>
+        <span class="val" id="cdVal" aria-live="off"></span>
+      </div>
+      <div class="box" id="mlBox">
+        <span class="lbl" id="mlLabel">Months left to earn</span>
+        <span class="val" id="mlVal"></span>
+      </div>
+    </footer>
+    <p class="fine" id="fine">You must be active at the end of the program to receive recognition hours.</p>
+  </div>
+</div>
+<script>
+/*DATA-START*/
+const DATA = {"salt":"d88d1777c383851a96a89243267c04a2","updated":"2026-11-17","resultsThrough":"October","r":{"2b89998dc2c2":"EE--","d66a597fc5d0":"NN--","313b41e79ea7":"NN--","49e7ff84562b":"EE--","995b72a453bd":"EN--","664f0fe8cac0":"EN--","8ef466bc20b2":"EE--","82584b4f5676":"EN--","ee947c8096d7":"EE--","b8dd646aa6d0":"EE--","089a5e8718a0":"EE--","12286a03d951":"EN--","6f2d4c220d2e":"EE--","d69aee1c4ca7":"EN--","15b0854d4cb3":"NN--","e77e31c303cd":"NN--","3493ec9bb8de":"EN--","a5d334a566f7":"EN--","2c9d74a11f70":"NN--","abf17d01a94f":"EN--","183cf0d75c13":"NN--","a92dcc9e0f26":"NN--","df4b2ea51707":"NN--","f1174e1b451e":"NN--","7f3778358a99":"EN--","063a3e41d237":"EE--","181920db3d7a":"EN--","0926c295c808":"NN--","f2a5c6887176":"EE--","ad1fe0a8292a":"NN--","9a076c89459f":"NN--","56fee6da5c5f":"EN--","7601918f2c0a":"EN--","366f19c127c5":"EN--","5d7fb5c0b37c":"NN--","11fa0f7e264a":"EE--","6ce99023270e":"NN--","fc690af55182":"EN--","40f594dd848e":"EN--","65f7ace7dcb5":"EN--","3f829283fafb":"EN--","3b793c16fab9":"EE--","54d5deaccdda":"NN--","c2fac49fa43c":"EE--","356ccab28e84":"NN--","618634cd0518":"EE--","e95961f72147":"EN--","edc7e637805d":"EN--","f12c2237ee13":"NN--","7145cfc4bf17":"EN--","8552b36ee5d6":"EE--","2621c035f1fd":"EN--","ca90aa3a3df8":"NE--","1c0cca8c5603":"NE--","8bebc791e960":"NN--","b3a12825ff42":"NN--","82564458b428":"EE--","a96a39d7c017":"NE--","07d543742244":"EN--","6da3ee7fd96f":"NN--","16a646b9feb6":"EE--","b280f6539342":"EE--","5499b962e7d2":"NN--","6d8f37334590":"NN--","7dd706af182f":"NN--","9f35214394b9":"NN--","84ad3e79e119":"EN--","8a9ba6200d5e":"EN--","8fa24a569931":"EE--","47221946ac7e":"NN--","17b717576e8b":"EN--","36a2108350fa":"EN--","418ba664189c":"NN--","e17522d93606":"EE--","fb821134d122":"EN--","2fb228c0871c":"NN--","1ae2dd6bb8b6":"EE--","3cee13f2e695":"EE--","7dd72210e5c7":"EE--","92be949818ec":"NE--","5ce8a3d73d54":"NN--","f1ce46fcd588":"EE--","877b8461625e":"EE--","a48a876fedba":"EE--","7583c9906866":"NE--","4c0c32469db4":"EN--","b99af32a19d4":"NN--","5d4a0f5d526d":"EN--","29748910dd68":"EE--","92adafc80c9f":"EE--","8de5d3a7bcb3":"NN--","6d7352755d7e":"NN--","92d3e53a3d91":"EN--","851b64d976d1":"NE--","a551fd72755d":"EN--","a97d188b8676":"EN--","de6d4e74323e":"NN--","3666bd609c8a":"EN--","34e0dd60a9df":"NN--","216e1831347c":"NN--","4ba2399ad5ca":"NE--","bb2cf9ed7c86":"NN--","46d7f397f2d8":"NE--","c7611e4ebfc4":"EE--","24f54ecdd015":"EN--","767fdf323b10":"EE--","25f84ed5174a":"EE--","420762a6ff2b":"EN--","44ac470b85a2":"EN--","e33121bfdc22":"NN--","4e9581c7d86f":"EN--","78d1ed627d15":"EN--","f70f82bd9d7e":"EN--","3a2fa248d5fe":"EN--","eef4c2869368":"EE--","6cf94b75b06c":"NN--","e696646402c9":"EN--","5c32aa3a1e77":"NE--","c7ba57636acf":"EE--","f99e5046d0d6":"EE--","191fa9ea80d2":"EE--","ec42a316847c":"NN--","bc3448106cc8":"EN--","93504d4aa085":"EN--","58f82681dae8":"EE--","081a61089e3d":"EE--","b2954cdafb6a":"EN--","d761f109e336":"EE--","3408b547285c":"NE--","375f20859fd5":"NN--","657a102361e1":"EE--","3a7ff40bacd2":"EE--","f8a824b98134":"EN--","9e779a93e895":"NN--","00204a253c72":"EN--","83c7a91fd975":"EN--","866e61f90421":"EE--","d4c90b8a4b02":"EE--","bc5b8908dd0e":"NE--","ec0d8f5fa24f":"EE--","a92f37f53425":"NN--","2e6ed4ee681a":"NN--","fcbb37d795f4":"NE--","723b831845fb":"EN--","7736e69f90df":"EN--","95bf9a99f358":"NN--","c7ebcd67ecf5":"EN--","97edf1fd0483":"EN--","cf8e92c306e1":"EN--","eea97a3d27f6":"EE--","a8d84603717c":"EN--","cee4830762df":"EE--","c23edb1817a7":"NN--","cdd10b7c8284":"EE--","177d3cb8648c":"NE--","eb04b395489e":"EN--","17d5e5d48da1":"EN--","ee856de2539e":"EN--","ffe022c52dfe":"NN--","7b2d7611ee45":"NE--","38846b12e11e":"EN--","734e2a729a36":"EN--","afc57aaaa845":"EN--","14415e905291":"EN--","d710dea0a43c":"EN--","8411601a1cb2":"EE--","7fe2dbe1ecaa":"EE--","994a2b15608d":"NN--","c9d33aac508e":"EE--","4c909a96d126":"EE--","2592af0a3e7b":"EN--","746881e0853e":"NE--","561af8967134":"EE--","3c478d573fa1":"EE--","1c9e7cbc68d8":"NN--","0ef820241ab2":"EE--","0ba905720fa2":"NN--","f8c0636587f3":"EE--","909f5b47aa08":"EN--","6601cc9c94b2":"NN--","ceb89d5b0f34":"EE--","12b87daaaf27":"EE--","5fe5d20b709e":"EN--","f100f7adab0f":"NN--","82b5db9af251":"NN--","d413c14a6111":"NE--","13f2bdcaf4ff":"EE--","17bb3b39f9ba":"EE--","6bae98a5dcee":"NN--","402f4baef7dd":"NE--","1cbbcce2370c":"EN--","a434d6725b1f":"EE--","1b956727b1c0":"NN--","b36c01b52065":"EN--","8210b630eccb":"EE--","3d9d84927801":"EE--","7ab5b50fd644":"EN--","0e3596caf0cd":"NN--","7d1f18303ad6":"EN--","685a60b4e941":"EN--","e0e31c4dd8b5":"EE--","c36f89ef519a":"EE--","0aeb95e80786":"NN--","aeff3080ec40":"NN--","e5220284a580":"NN--","c3cceeb19c0b":"EE--","6237b263d6db":"EE--","b2c9d02a7263":"EN--","d0b06453dc45":"EE--","1bd11ad2e241":"EE--","52488ae38c7e":"EE--","b165f5092a20":"NN--","f81f2ec934be":"NE--","d99544069fee":"EE--","46de5f889858":"NE--","e9548f994999":"EN--","47c23f72bbef":"EN--","1cc175f37838":"EN--","d7afb1b6d534":"NN--","fdd6abc0f190":"EN--","d09cd68ab496":"NE--","d9aa375ff014":"EE--","e246c0316781":"NE--","2b830f354de9":"EE--","ee08b027fcfd":"NN--","b55f90051a69":"EE--","f1b56d730d50":"EN--","4846001e532c":"EN--","e05f223d5e89":"EN--","821c87033ff9":"EE--","2b663cb44e6a":"EN--","152b8877bf44":"NN--","b8276c17672a":"EE--","62f3553e4027":"EE--","bf85608934a5":"NN--","50decf0dc53c":"NE--","6c0d8405d663":"EE--","b4d58f717415":"NE--","f93f86c594d2":"NE--","2bc6b6186121":"EE--","301bac8688db":"EE--","5f236fcb1182":"EN--","bfe6c675ef47":"EN--","4451a99b425d":"EN--","3328d2e27f62":"EN--","8b9974e26385":"EE--","9fe0d5f5667d":"EN--","9d3575a4d4bf":"NE--","12063c1cc652":"NN--","fd731ee28e2c":"NE--","415ccee78cca":"NN--","018b07fc547c":"EE--","978aa2889e96":"EE--","84df65590adc":"EN--","c16042cd99ba":"EE--","a01a9053bfc4":"EE--","2f4340a4d926":"EE--","a57716c735cd":"EN--","97f460ac2ee0":"EN--","bdc032b87d49":"EE--","e4354ae2c936":"NN--","7632f18815b8":"EN--","d2770f02ddc5":"NE--","6cabfb89e6b5":"NE--","c0cc7c2e296d":"EE--","09c1d10defd1":"EN--","8f10efce9094":"EN--","5be4438a56fa":"EN--","389284f340e0":"EN--","4efd31d3cccb":"EE--","d84a6af37323":"EE--","5fda704f390d":"EE--","574d48c78986":"EE--","565e24421b97":"EE--","cf9a9467a0f0":"EE--","4a8dd9465e8b":"EN--","f351e1a84abb":"EE--","385926cc761f":"NN--","5917dac4241c":"EE--","52f7b1ed5614":"EN--","c8dc2300ec97":"EN--","afc2087a62ea":"NE--","5cedbace3611":"NN--","09aaad820ad3":"NE--","1272a284ad1b":"NE--","f09ce95ca642":"NN--","29ce1020723a":"EN--","ab91ff6e4652":"EN--","efcfd2bb7bcb":"EE--","68d2a6dda093":"EE--","a187299702cf":"EN--","fe5212fed7b3":"EE--","8e73e1164c3d":"EE--","f7080c76ed3f":"EE--","4a73372a2e85":"EE--","781d1a13e919":"EE--","7fcda5c511e2":"NN--","49e56b0ea86c":"EN--","d2a83621b099":"EE--","a68db152c2f7":"EE--","fa7036c0527e":"EE--","708050c03ae0":"EE--","a69c48f44dee":"EE--","122e054c1fbe":"NE--","38f3730806b9":"EN--","dc422aebcb98":"NE--","6665330c4ce0":"EN--","2bbd866de73c":"EE--","59bfa7bb05a8":"NN--","59a3d6f40f30":"EN--","e3422e0a93c1":"EN--","7bf2e220ad04":"EN--","a7310ef1d39c":"EE--","6add7e044b79":"EE--","2b2446a56190":"EN--","0ab774be97d9":"EN--","ab8663a44aaa":"EN--","06912a757038":"EE--","6c44a8e501fa":"NN--","9d9695b48ed1":"EN--","67dd33904a39":"EN--","5c6182878a6f":"NN--","a4b45c3f4b92":"NN--","388111aef7d5":"EE--","44d0af6cc339":"EN--","af81fb9c3d66":"EN--","cc30d5834410":"EN--","e42e736e5949":"NN--","023ba0ff453a":"EE--","c0a23ce5a47b":"EN--","63161be62097":"EE--","360cf2af75ba":"EE--","4c6d73f39693":"EN--","1183e58e6351":"EE--","4fdded915a61":"EE--","068c38f0737a":"EE--","4b279293181c":"EN--","ea1249497e74":"EE--","51cb309fa10e":"EN--","c52ff6f7fbc4":"NN--","0dccb5b5fd77":"NE--","fac97db2ccdc":"EN--","3705c8ba3a16":"EE--","32d9adfbfc60":"EE--","303de596d76e":"NN--","bf008de7d2d4":"EE--","06615e90dca5":"EN--","d733261720d4":"EN--","e1583a128112":"EE--","31030ca7d694":"EN--","8e50cb299cc9":"NN--","849f849a3026":"EE--","933230d3b8ef":"EE--","fbcbfaaaaec8":"EE--","e8e09b194456":"EE--","976f7e64fea5":"EE--","b98a023d465a":"EE--","eb059925b83a":"NN--","bf32782ef711":"EE--","52d11ec69f1e":"NE--","6f7d92ff05d6":"EE--","0ab7bccf2ea6":"EN--","cb4a6698ee54":"EE--","18dc1d6f89b3":"NE--","1c91131ad903":"EN--","2b572b4e4eb8":"NN--","6e99aec2de51":"NE--","dfa074baa84c":"EE--","28e855eef426":"EN--","c973564d23e0":"NN--","8c0b97e4ff4a":"EN--","83b7a45386b4":"EE--","069eb529ef13":"NN--","dd610da4f405":"NE--","55c029121a41":"EN--","e2ab13d4ecbd":"EE--","de08d0b85b36":"EN--","7610428392c0":"EN--","cdfded06237f":"EE--","10c444e50760":"NE--","8dcb6fdd7f7d":"NN--","cb052d472912":"EN--","eaa9067ac260":"EN--","22975b84899d":"EN--","8ff150d0c76b":"EN--","cf379111af1f":"EN--","becc59ae6b10":"NN--","420367e885e4":"EE--","92bfcfffd744":"EN--","1cba766a10aa":"EE--","a32b96a2fabc":"EE--","6a44f7389ae0":"NE--","9d19db79bc63":"NE--","d0809180dc18":"EN--","de84c41853bb":"NE--","b2ecbb57aa4a":"NN--","c22f2622b89d":"EN--","4e1fd114f212":"EN--","110005f726d1":"NN--","4fb4d9e61613":"EN--","25e23715e1d2":"EE--","e1b9529d3d16":"EN--","103876cff41b":"NN--","b12b0ad5146c":"NN--","97b7c8c86f24":"EE--","b30e5f5629fa":"EN--","59dd95b2d133":"NN--","e48e262efab5":"EN--","9f3bece50f55":"EN--","0ca645a18919":"EE--","1e7ef4d97777":"EE--","306ee3334d2e":"EN--","e490509c7536":"NN--","66d3f5cbb972":"EE--","5f1fde3ad322":"NN--","f37fcafe24a4":"EN--","1f300a22d7c1":"NN--","d70e66f90fbe":"EN--","eaa756fa8c3f":"EN--","4530a1a5d320":"EE--","6ca29adfaaff":"NE--","6af245ef873e":"EN--","4f9666f4dfd3":"NN--","d8f73de2f698":"NE--","552a0e8ba0ce":"NN--","2dfd529ea822":"NN--","3ebc1eb620d2":"NN--","5b36cd45aebe":"EN--","051c46df3479":"EE--","2527aefb2aa5":"NE--","a9171552c8fd":"NN--","68f83d9953b0":"NN--","f745bd308cca":"EN--","570dd4bcd06c":"NN--","553d07f07837":"EE--","ed2dac41d5c1":"EE--","d5ec17653a9d":"EN--","409a5b5d0edb":"NE--","a452aeac1d32":"NN--","969ae41313d5":"EE--","a112a000744e":"EE--","cbfdd4da4c7a":"EE--","ce24c1461808":"NN--","847722e0a684":"NN--","0eacc9508574":"EE--","934480ab657c":"EE--","3333b489aab2":"NE--","47560164efd4":"EE--","955ea175e66f":"EE--","9eaf7d679894":"NN--","b16889200729":"NN--","a5503687c3ed":"EE--","c5931ef9408e":"EE--","29cd02b8bee2":"NE--","5fd13381cbf8":"EE--","f75a758cbfe8":"EN--","281b5d14e081":"NN--","6371284671d0":"EN--","b7a9d9745966":"NN--","c256f8381f19":"EE--","b2c2da7e0fb4":"EN--","ad988536445c":"EN--","a86272abff6e":"EN--","63ebd8767db3":"NE--","9860a4e3c673":"NN--","17145f610c58":"NE--","a9ac167c88da":"EE--","88e9c26e1e20":"EE--","6e67dfc9e621":"EN--","0b30dc61ff15":"NN--","ea5815981267":"EE--","9502e2e586a2":"NE--","8f45c74d59e3":"EN--","420825c97e58":"NN--","7f89da81a1bc":"EE--","cb075c4a0eea":"NE--","f4056b573286":"EN--","0a02e95b1eef":"EN--","891871119325":"NN--","c9af05d76495":"EN--","37f4e53d8e7b":"EE--","9cdeb5109dbf":"EN--","1e85c415eb5d":"EN--","d241e456273e":"EE--","a768272eeb60":"EE--","8af9c442bc76":"NN--","1fd88eef37f0":"NN--","cdb6b6d5b703":"EN--","614570fec3d5":"NN--","19db13f018bf":"EE--","72efc995d8d5":"EN--","a86b926f3485":"EN--","1870637080f1":"EN--","3e8a0fba3556":"NE--","cc451713ff2b":"NN--","4cdc533b02d7":"EN--","65b722ee2387":"NN--","a60cc18b75d9":"EN--","66487b6baeac":"EN--","a14b1dfb3e6e":"EN--","abcd59117c8f":"EN--","28e8f3186db4":"EN--","6600e944583d":"NN--","090cdfd881d1":"NN--","0db41805edba":"NN--","4901c295593f":"NE--","36638b8e975c":"EN--","52ef67bbf5be":"EN--","51aa9d9b88b6":"EN--","ea053fbe81d5":"NE--","915fc620fe92":"EN--","e41eef7c3b58":"EN--","50466e130558":"NN--","3c9c671dd2ee":"EN--","6dfde6c084ff":"EE--","9aff7a23b655":"NN--","31e8966b15bc":"NN--","3d7affde71f3":"EE--","946253cccbb8":"EN--","c9016a2918f1":"NE--","a1f6b77a6087":"EN--","1e3afaca56ef":"EE--","9181cbd9f20a":"EN--","95ca51c21421":"EE--","cda74b2b3f0c":"NN--","9c260afde895":"NN--","b1365536b42f":"EE--","5ff574240e7f":"NE--","11b8464e55f9":"EE--","ae08e93029d9":"EN--","83fc49b2bc95":"NN--","6dbad91a0a29":"NN--","29234c4d7c99":"EN--","3fc5c2236094":"NN--","4cc2e89e74f3":"EE--","93156e776811":"NN--","44c16dbaa345":"EN--","7e84671b5fdd":"EE--","d3ff7d074044":"EN--","c7e262006423":"EN--","04480b5250cb":"EN--","d5dac3608f0b":"EN--","ca9bdc61ba5d":"EN--","6b55cf99677e":"EN--","b8e7176148c0":"EE--","4dbf2cfcce7c":"NN--","ad1ff39c5c83":"EN--","3ca9fa3ee354":"EN--","b25faa9e1f88":"NE--","2b4c2726aeac":"NN--","c70727cac653":"NE--","360881a8f33c":"EN--","6bf663eee996":"NN--","c7d11b6c1577":"NN--","f37469110dee":"EN--","13c818fb176e":"NN--","cf128914dbc2":"EN--","b2af4160ce81":"EN--"}};
+/*DATA-END*/
+
+const params = new URLSearchParams(window.location.search);
+const vars = {
+  externalLocationId: params.get('externalLocationId') || null,
+  externalLocationCode: params.get('externalLocationCode') || null,
+  address: params.get('address') || null,
+  city: params.get('city') || null,
+  stateOrProvince: params.get('stateOrProvince') || null,
+  country: params.get('country') || null,
+  zipCode: params.get('zipCode') || null,
+  externalRegionId: params.get('externalRegionId') || null,
+  externalRegionCode: params.get('externalRegionCode') || null,
+  employeeId: params.get('employeeId') || null,
+  employeeCode: params.get('employeeCode') || null,
+  username: params.get('username') || null,
+  language: params.get('language') || 'en',
+  aspectRatio: params.get('aspectRatio') || 'standard',
+  // custom: QA-only date override (ISO timestamp). Ignored if invalid.
+  previewDate: params.get('previewDate') || null
+};
+const RATIOS = { standard: '4 / 3', square: '1 / 1', landscape: '16 / 9', portrait: '9 / 16' };
+const RATIO_NUM = { standard: 4/3, square: 1, landscape: 16/9, portrait: 9/16 };
+const frame = document.querySelector('.frame');
+frame.style.aspectRatio = RATIOS[vars.aspectRatio] || RATIOS.standard;
+function fit(){
+  const r = RATIO_NUM[vars.aspectRatio] || RATIO_NUM.standard;
+  const w = Math.min(document.documentElement.clientWidth || 520, 520, (window.innerHeight || 9999) * r);
+  frame.style.width = Math.max(200, Math.floor(w)) + 'px';
+}
+fit(); window.addEventListener('resize', fit);
+
+// Compact SHA-256 (ASCII input) so the lookup works on any host, including file://
+function sha256(s){function rr(v,a){return(v>>>a)|(v<<(32-a))}var P=Math.pow,M=P(2,32),i,j,out='',w=[],L=s.length*8,h=[],k=[],n=0,C={};
+for(var c=2;n<64;c++){if(!C[c]){for(i=0;i<313;i+=c)C[i]=c;h[n]=(P(c,.5)*M)|0;k[n++]=(P(c,1/3)*M)|0}}
+h=h.slice(0,8);s+='\x80';while(s.length%64-56)s+='\x00';for(i=0;i<s.length;i++){j=s.charCodeAt(i);w[i>>2]|=j<<((3-i)%4)*8}
+w[w.length]=(L/M)|0;w[w.length]=L;for(j=0;j<w.length;){var W=w.slice(j,j+=16),o=h;h=h.slice(0,8);
+for(i=0;i<64;i++){var a=W[i-15],b=W[i-2],A=h[0],E=h[4];var t1=h[7]+(rr(E,6)^rr(E,11)^rr(E,25))+((E&h[5])^(~E&h[6]))+k[i]+(W[i]=i<16?W[i]:(W[i-16]+(rr(a,7)^rr(a,18)^(a>>>3))+W[i-7]+(rr(b,17)^rr(b,19)^(b>>>10)))|0);
+var t2=(rr(A,2)^rr(A,13)^rr(A,22))+((A&h[1])^(A&h[2])^(h[1]&h[2]));h=[(t1+t2)|0].concat(h);h[4]=(h[4]+t1)|0}
+for(i=0;i<8;i++)h[i]=(h[i]+o[i])|0}for(i=0;i<8;i++)for(j=3;j+1;j--){var x=(h[i]>>(j*8))&255;out+=(x<16?'0':'')+x.toString(16)}return out}
+
+function normId(v){ if(!v) return null; v=String(v).trim(); if(!/^\d+$/.test(v)) return null; return v.replace(/^0+(?=\d)/,''); }
+function lookup(id){ const n=normId(id); if(!n||!DATA.salt) return null; return DATA.r[sha256(DATA.salt+':'+n).slice(0,12)] || null; }
+const record = lookup(vars.employeeId);   // e.g. "EN--" : E earned, N not earned, - not posted yet
+
+const MONTHS = [
+  {y:2026,m:8,short:'Sep',full:'September'},{y:2026,m:9,short:'Oct',full:'October'},
+  {y:2026,m:10,short:'Nov',full:'November'},{y:2026,m:11,short:'Dec',full:'December'}];
+const START = new Date(2026,8,1), EARN_END = new Date(2027,0,1), SHOW_END = new Date(2027,1,1);
+const pd = vars.previewDate ? new Date(vars.previewDate) : null;
+const offset = (pd && !isNaN(pd)) ? pd.getTime() - Date.now() : 0;
+const now = () => new Date(Date.now() + offset);
+
+const $ = id => document.getElementById(id);
+const show = (el,on) => el.classList.toggle('hidden',!on);
+const plural = n => n===1 ? 'hour' : 'hours';
+let target = null, curIdx = -1, monthStart = null;
+
+function render(){
+  const t = now();
+  const codes = record || '----';
+  const earned = [...codes].filter(c=>c==='E').length;
+  curIdx = MONTHS.findIndex(x=>t.getFullYear()===x.y && t.getMonth()===x.m);
+  const phase = t < EARN_END ? 'active' : (t < SHOW_END ? 'complete' : 'closed');
+  const chip=$('chip'), tokens=$('tokens');
+  chip.classList.toggle('done', phase!=='active');
+  let showTokens=false, showGoals=false, showMeta=false, showFine=false;
+
+  if(phase==='active'){
+    const pre = t < START;
+    const isFinal = curIdx===3;
+    $('chipText').textContent = pre ? 'Starts in September' : (isFinal ? 'Final month' : MONTHS[curIdx].full);
+    showMeta = true; showFine = true;
+    if(earned>0){
+      $('headline').textContent = `You've earned ${earned} recognition ${plural(earned)} so far.`;
+      $('sub').textContent = isFinal ? 'December is your last chance to earn. Keep showing up!'
+                                     : 'Keep showing up. Each month is a new chance to earn.';
+      showTokens = true;
+    } else {
+      $('headline').textContent = "There's still time to earn recognition hours.";
+      $('sub').textContent = isFinal ? 'December is the final month. Hit both goals to earn 1 hour.'
+                                     : 'Hit both goals this month to earn 1 hour. Each month is a clean slate.';
+      showGoals = true;
+    }
+    if(pre){ target = START; monthStart = null; $('cdLabel').textContent='Program starts in'; $('mlVal').textContent='4'; }
+    else {
+      const m = MONTHS[curIdx]; monthStart = new Date(m.y,m.m,1); target = new Date(m.y,m.m+1,1);
+      $('cdLabel').textContent = isFinal ? 'Time left to earn' : `Time left in ${m.full}`;
+      const left = 4-curIdx;
+      $('mlVal').innerHTML = isFinal ? '1<small>final</small>' : String(left);
+    }
+  } else if(phase==='complete'){
+    $('chipText').textContent = 'Program complete';
+    target = null;
+    if(earned>0){
+      $('headline').textContent = `You earned ${earned} recognition ${plural(earned)}. Nice work!`;
+      $('sub').textContent = codes[3]==='-' ? 'December results will appear here once they are posted.'
+                                            : 'Thanks for showing up for your team this fall.';
+      showTokens = true; showFine = true;
+    } else if(record && codes[3]==='-'){
+      $('headline').textContent = 'Final results are on the way.';
+      $('sub').textContent = 'December results will appear here once they are posted.';
+    } else {
+      $('headline').textContent = 'The attendance program is over. Happy New Year!';
+      $('sub').textContent = 'Thanks for being part of the pilot this fall.';
+    }
+  } else {
+    $('chipText').textContent = 'Program ended';
+    target = null;
+    $('headline').textContent = 'The attendance program has ended.';
+    $('sub').textContent = 'Thanks for being part of the pilot. Happy New Year!';
+  }
+
+  if(showTokens){
+    tokens.innerHTML = '';
+    MONTHS.forEach((m,i)=>{
+      const c = codes[i]; let cls, v, cap, aria;
+      if(c==='E'){cls='earned';v='1';cap='1 of 1 hr';aria=`${m.full}: 1 of 1 hour earned`;}
+      else if(c==='N'){cls='none';v='0';cap='0 of 1 hr';aria=`${m.full}: 0 of 1 hour earned`;}
+      else if(phase==='active' && i===curIdx){cls='current';v='–';cap='In progress';aria=`${m.full}: in progress`;}
+      else if(phase==='active' && i>curIdx){cls='future';v='–';cap='Up next';aria=`${m.full}: up next`;}
+      else {cls='pending';v='–';cap='Pending';aria=`${m.full}: results pending`;}
+      const li=document.createElement('li'); li.className='tok '+cls; li.setAttribute('aria-label',aria);
+      li.innerHTML=`<span class="dial" aria-hidden="true"><b>${v}</b></span><span class="m" aria-hidden="true">${m.short}</span><span class="c" aria-hidden="true">${cap}</span>`;
+      tokens.appendChild(li);
+    });
+  }
+  show(tokens,showTokens); show($('metric'),showTokens); show($('goals'),showGoals);
+  show($('meta'),showMeta); show($('fine'),showFine);
+  tick();
+}
+
+function pad(n){return String(n).padStart(2,'0')}
+function tick(){
+  if(!target) return;
+  const t = now(); let ms = target - t;
+  if(ms <= 0){ render(); return; }
+  const s = Math.floor(ms/1000), d = Math.floor(s/86400), h = Math.floor(s%86400/3600), mi = Math.floor(s%3600/60), se = s%60;
+  $('cdVal').innerHTML = `${d}<small>${d===1?'day':'days'}</small>${pad(h)}:${pad(mi)}:${pad(se)}`;
+  if(monthStart){
+    const p = Math.min(1,Math.max(0,(t-monthStart)/(target-monthStart)));
+    const cur = document.querySelector('.tok.current'); if(cur) cur.style.setProperty('--p',p.toFixed(4));
+  }
+}
+render();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
