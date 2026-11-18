@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Attendance Program Reminder</title>
+<style>
+:root{
+  --ink:#FFFFFF; --soft:rgba(255,255,255,.86); --panel:rgba(4,14,34,.38); --panel-line:rgba(255,232,170,.35);
+  --gold1:#FFF4C9; --gold2:#F9CB4E; --gold3:#C9860E; --gold4:#F4BE3E; --gold-edge:#7A4A06;
+  --orange:#F07C22; --teal:#2BB3B1;
+  --ok:#3DBE7A; --warn:#F2B33D; --bad:#E5534B;
+  --lift:0%;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root{ --panel:rgba(4,14,34,.30); --lift:14%; color-scheme:light; }
+}
+/* Month palettes, drawn from the program flyers (Sept blue/orange, Oct maroon/gold) */
+.t-sep{--s1:#071F45;--s2:#0F64A3;--s3:#E8792B}
+.t-oct{--s1:#3A0812;--s2:#7E1F2E;--s3:#D8692A}
+.t-nov{--s1:#22093A;--s2:#5A2770;--s3:#E09422}
+.t-dec{--s1:#04291F;--s2:#0D5C44;--s3:#D3A72C}
+.t-jan{--s1:#08163A;--s2:#1E3478;--s3:#C9952A}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:transparent;height:100%}
+body{display:flex;align-items:flex-start;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,system-ui,sans-serif;
+  color:var(--ink);-webkit-font-smoothing:antialiased}
+.frame{position:relative;width:100%;max-width:520px;aspect-ratio:4/3;overflow:hidden;border-radius:18px;
+  container-type:size;container-name:frame;isolation:isolate;
+  background:
+    radial-gradient(120% 70% at 85% 110%, color-mix(in srgb,var(--s3) 75%,transparent) 0%, transparent 60%),
+    radial-gradient(90% 60% at 10% -10%, color-mix(in srgb,var(--s2) 80%,white var(--lift)) 0%, transparent 70%),
+    linear-gradient(130deg, color-mix(in srgb,var(--s1) 100%,white var(--lift)) 0%, color-mix(in srgb,var(--s2) 100%,white var(--lift)) 55%, var(--s3) 130%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+/* sparkle field */
+.stars{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.75;
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 18%,#fff 98%,transparent),radial-gradient(1px 1px at 28% 62%,#fff 98%,transparent),
+    radial-gradient(1.4px 1.4px at 44% 12%,#ffe7a3 98%,transparent),radial-gradient(1px 1px at 63% 38%,#fff 98%,transparent),
+    radial-gradient(1.3px 1.3px at 78% 22%,#fff 98%,transparent),radial-gradient(1px 1px at 88% 66%,#ffe7a3 98%,transparent),
+    radial-gradient(1.2px 1.2px at 7% 84%,#fff 98%,transparent),radial-gradient(1px 1px at 52% 88%,#fff 98%,transparent),
+    radial-gradient(1.1px 1.1px at 35% 34%,#fff 98%,transparent),radial-gradient(1px 1px at 95% 9%,#fff 98%,transparent)}
+.glint{position:absolute;z-index:0;width:1.1em;height:1.1em;pointer-events:none;
+  clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);
+  background:linear-gradient(160deg,#FFFFFF,#F9CB4E);
+  animation:twinkle 2.4s ease-in-out infinite}
+.glint.g1{top:9%;left:46%;font-size:12px}.glint.g2{top:30%;right:6%;font-size:16px;animation-delay:-.8s}
+.glint.g3{bottom:18%;left:4%;font-size:10px;animation-delay:-1.6s}
+/* balloons */
+.balloons{position:absolute;z-index:0;right:-2.5%;top:9%;width:24%;max-width:130px;pointer-events:none;
+  animation:float 5.5s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(0,0,0,.25))}
+/* confetti */
+.confetti{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-6%;width:7px;height:11px;border-radius:2px;opacity:0;
+  animation:fall var(--d,3s) cubic-bezier(.25,.6,.4,1) var(--w,0s) 1 forwards}
+
+.inner{position:absolute;inset:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr) auto auto;grid-template-areas:"top" "hero" "body" "pills" "fine";
+  gap:.6em;padding:1em 1.1em .8em;font-size:clamp(9px,min(3.2cqw,4.3cqh),18px)}
+.top{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:.6em;min-width:0}
+.kicker{font-size:.74em;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{flex:none;display:inline-flex;align-items:center;gap:.4em;font-size:.72em;font-weight:800;letter-spacing:.03em;
+  text-transform:uppercase;padding:.32em .8em;border-radius:999px;color:#3A2300;
+  background:linear-gradient(180deg,var(--gold1),var(--gold2) 55%,var(--gold4));box-shadow:0 2px 0 var(--gold-edge),0 4px 12px rgba(0,0,0,.25)}
+.chip .dot{width:.55em;height:.55em;border-radius:50%;background:#C2410C;animation:status 2s ease-in-out infinite}
+.hero{grid-area:hero;min-width:0;max-width:76%;padding-bottom:.12em}
+h1{margin:0;font-weight:900;text-transform:uppercase;letter-spacing:-.01em;line-height:.98;font-size:1.72em;text-wrap:balance}
+h1 .l1{display:block;color:#fff;text-shadow:0 .055em 0 rgba(0,0,0,.28),0 .12em .3em rgba(0,0,0,.35)}
+h1 .l2{display:block;font-size:1.18em}
+.gold{background:linear-gradient(180deg,var(--gold1) 0%,var(--gold2) 42%,var(--gold3) 58%,var(--gold4) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 .05em 0 var(--gold-edge)) drop-shadow(0 .12em .25em rgba(0,0,0,.35))}
+.sub{margin:.4em 0 0;font-size:.86em;line-height:1.3;font-weight:600;color:var(--soft);text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.body{grid-area:body;min-height:0;display:flex}
+.body>*{flex:1;min-width:0;min-height:0}
+
+/* month cards */
+.months{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5em;min-height:0}
+.mo{position:relative;container-type:size;container-name:card;min-height:0;border-radius:.85em;overflow:hidden;
+  background:linear-gradient(165deg,var(--s2) 0%,var(--s1) 78%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 .3em .8em rgba(0,0,0,.28)}
+.mo::before{content:"";position:absolute;inset:0 0 auto;height:.32em;background:var(--s3)}
+.mo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),transparent 40%);pointer-events:none}
+.mo-in{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:9cqh 4cqi 7cqh;text-align:center;gap:2cqh}
+.mo-name{font-weight:900;text-transform:uppercase;letter-spacing:.06em;font-size:clamp(8px,min(14cqi,10cqh),17px);line-height:1}
+.mo-name .full{display:none}
+.mo-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-height:0;gap:1.5cqh}
+.badge{width:min(34cqh,46cqi);aspect-ratio:1;flex:none}
+.hrs{display:flex;align-items:baseline;justify-content:center;gap:.18em;line-height:.9}
+.hrs b{font-size:min(30cqh,50cqi);font-weight:900}
+.hrs em{font-style:normal;font-weight:900;text-transform:uppercase;font-size:min(9cqh,12.5cqi);letter-spacing:.04em}
+.ribbon{font-weight:900;text-transform:uppercase;letter-spacing:.02em;font-size:min(8.5cqh,9.2cqi);line-height:1;max-width:100%;
+  padding:.42em .55em;border-radius:999px;white-space:nowrap;background:rgba(0,0,0,.28);color:#fff}
+.mo.earned{box-shadow:inset 0 0 0 2px var(--gold2),0 0 1.1em color-mix(in srgb,var(--gold2) 45%,transparent),0 .3em .8em rgba(0,0,0,.3)}
+.mo.earned .ribbon{color:#3A2300;background:linear-gradient(180deg,var(--gold1),var(--gold2) 55%,var(--gold4));box-shadow:0 2px 0 var(--gold-edge)}
+.mo.earned .mo-in{animation:stamp .6s cubic-bezier(.3,1.5,.5,1) both}
+.mo.earned .sheen{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.45) 50%,transparent 65%);transform:translateX(-120%);
+  animation:sheen 1.4s ease-out .7s 1 both}
+.mo.none{filter:saturate(.35) brightness(.82)}
+.mo.none .hrs{opacity:.9}
+.mo.current{box-shadow:inset 0 0 0 2px var(--s3),0 .3em .8em rgba(0,0,0,.3)}
+.mo.current .ribbon{background:var(--s3);color:#fff}
+.mo.current .hrs b{color:transparent;-webkit-text-stroke:.045em #fff}
+.mo.current .badge .hand{transform-origin:24px 24px;animation:spin 5.5s linear infinite}
+.mo.future,.mo.pending{opacity:.62}
+.mo.future .hrs b,.mo.pending .hrs b{color:transparent;-webkit-text-stroke:.04em rgba(255,255,255,.85)}
+@container card (min-width:150px){ .mo-name .full{display:inline} .mo-name .short{display:none} }
+@container card (max-height:115px){ .badge{display:none} }
+@container card (max-height:80px){ .ribbon{display:none} }
+
+/* reminder (no hours yet) */
+.goals{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:.6em;min-height:0}
+.gcard{border-radius:.85em;background:var(--panel);box-shadow:inset 0 0 0 1px var(--panel-line);overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.gcard h2{margin:0;padding:.45em .8em;font-size:.86em;font-weight:900;text-transform:uppercase;letter-spacing:.03em;color:#2A1A00;
+  background:linear-gradient(180deg,var(--gold1),var(--gold2) 55%,var(--gold4))}
+.gcard ol{list-style:none;margin:0;padding:.5em .8em;display:flex;flex-direction:column;justify-content:space-evenly;gap:.4em;flex:1}
+.gcard li{display:flex;align-items:center;gap:.6em;font-weight:900;text-transform:uppercase;font-size:.92em;line-height:1.05}
+.gcard li .n{color:var(--gold2)}
+.gcard svg{flex:none;width:2em;height:2em}
+.reset{border-radius:.85em;background:var(--panel);box-shadow:inset 0 0 0 1px var(--panel-line);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:.4em;padding:.5em;text-align:center;min-height:0}
+.reset svg{width:3.4em;height:3.4em;flex:none;overflow:visible;filter:drop-shadow(0 .08em .15em rgba(0,0,0,.35));animation:spin 4s linear infinite}
+.reset b{font-weight:900;text-transform:uppercase;line-height:1.02;font-size:.95em}
+.reset b span{display:block}
+
+/* finale */
+.finale{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:0}
+.finale .big{font-weight:900;font-size:min(4.6em,30cqh);line-height:1;letter-spacing:-.02em}
+
+.pills{grid-area:pills;display:flex;gap:.5em;flex-wrap:wrap;min-width:0}
+.pill{display:inline-flex;align-items:center;gap:.45em;font-size:.82em;font-weight:800;padding:.42em .85em;border-radius:999px;
+  background:var(--panel);box-shadow:inset 0 0 0 1px var(--panel-line);white-space:nowrap}
+.pill b{font-size:1.25em;font-weight:900;color:var(--gold2);font-variant-numeric:tabular-nums}
+.pill .live{width:.5em;height:.5em;border-radius:50%;background:var(--orange);animation:pulse 1.5s ease-in-out infinite}
+.fine{grid-area:fine;margin:0;font-size:.62em;font-weight:600;color:var(--soft);opacity:.9}
+.hidden{display:none!important}
+
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+@keyframes status{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes twinkle{0%,100%{opacity:.25;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1) rotate(45deg)}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6%) rotate(3deg)}}
+@keyframes fall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--x,0),112cqh) rotate(var(--r,540deg))}}
+@keyframes stamp{0%{transform:scale(.55);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes sheen{to{transform:translateX(120%)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important}.confetti{display:none}}
+
+/* Landscape */
+@container frame (aspect-ratio > 3/2){
+  .inner{font-size:clamp(9px,min(2.75cqw,5.2cqh),17px);gap:.45em;padding:.85em 1.1em .7em}
+  .hero{max-width:74%}
+  h1{font-size:1.55em}
+  .balloons{width:15%;top:13%;right:-1%}
+}
+/* Portrait */
+@container frame (aspect-ratio < 3/4){
+  .inner{font-size:clamp(9px,min(4.5cqw,2.6cqh),18px);gap:.8em;grid-template-rows:auto auto minmax(0,1fr) auto auto}
+  .top{flex-wrap:wrap;row-gap:.4em}
+  .hero{max-width:100%;padding-top:2.5em}
+  h1{font-size:1.9em}
+  .balloons{width:30%;top:5.5%;right:-3%}
+  .months{grid-template-columns:repeat(2,minmax(0,1fr));gap:.65em}
+  .goals{grid-template-columns:1fr;grid-template-rows:minmax(0,1.5fr) minmax(0,1fr)}
+  .pills{flex-direction:column;align-items:stretch}
+}
+@container frame (max-height:250px){ .sub,.fine{display:none} .reset{display:none} .goals{grid-template-columns:1fr} .glint{display:none} }
+@container frame (max-width:340px) and (aspect-ratio > 3/4){ .reset{display:none} .goals{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF4C9"/><stop offset=".45" stop-color="#F9CB4E"/><stop offset=".6" stop-color="#C9860E"/><stop offset="1" stop-color="#F4BE3E"/></linearGradient>
+    <symbol id="clock" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="url(#gg)"/><circle cx="24" cy="24" r="16.5" fill="#0B1C3A" stroke="#7A4A06" stroke-width="1"/>
+      <g stroke="#F9CB4E" stroke-width="2" stroke-linecap="round"><path d="M24 10v3M24 35v3M10 24h3M35 24h3"/></g>
+      <path d="M24 24V15.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path class="hand" d="M24 24l6.5 4" stroke="#F9CB4E" stroke-width="2.6" stroke-linecap="round"/><circle cx="24" cy="24" r="2" fill="#fff"/></symbol>
+  </defs>
+</svg>
+<div class="frame t-sep" id="frame" role="region" aria-label="Attendance Program Reminder">
+  <div class="stars" aria-hidden="true"></div>
+  <i class="glint g1" aria-hidden="true"></i><i class="glint g2" aria-hidden="true"></i><i class="glint g3" aria-hidden="true"></i>
+  <svg class="balloons" viewBox="0 0 120 170" aria-hidden="true">
+    <path d="M38 78 Q46 120 60 168 M84 70 Q74 118 60 168 M62 52 Q62 110 60 168" stroke="rgba(255,255,255,.55)" stroke-width="1.2" fill="none"/>
+    <ellipse cx="62" cy="30" rx="22" ry="27" fill="#F07C22"/><ellipse cx="55" cy="20" rx="6" ry="9" fill="#fff" opacity=".35"/>
+    <ellipse cx="36" cy="56" rx="21" ry="25" fill="url(#gg)"/><ellipse cx="29" cy="47" rx="5.5" ry="8" fill="#fff" opacity=".45"/>
+    <ellipse cx="88" cy="50" rx="20" ry="24" fill="#F5F1E8"/><ellipse cx="82" cy="41" rx="5" ry="8" fill="#fff" opacity=".7"/>
+  </svg>
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="inner">
+    <header class="top">
+      <span class="kicker">Attendance Program Reminder</span>
+      <span class="chip"><span class="dot" aria-hidden="true"></span><span id="chipText"></span></span>
+    </header>
+    <section class="hero" aria-live="polite">
+      <h1><span class="l1" id="h1a"></span><span class="l2 gold" id="h1b"></span></h1>
+      <p class="sub" id="sub"></p>
+    </section>
+    <section class="body">
+      <ol class="months hidden" id="months" aria-label="Recognition Hours Earned by month"></ol>
+      <div class="goals hidden" id="goals">
+        <div class="gcard">
+          <h2>Your monthly goals</h2>
+          <ol>
+            <li><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="9" y="7" width="26" height="34" rx="4" fill="url(#gg)"/><rect x="13" y="12" width="18" height="25" rx="2" fill="#0B1C3A"/><path d="M16 19l2.5 2.5 4-4M16 28l2.5 2.5 4-4" stroke="#F9CB4E" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="35" r="7" fill="#F07C22"/><circle cx="36" cy="35" r="2.6" fill="#0B1C3A"/></svg><span><span class="n">1.</span> Work your shifts</span></li>
+            <li><svg viewBox="0 0 48 48" aria-hidden="true"><use href="#clock"/></svg><span><span class="n">2.</span> Use less than 4&nbsp;hours of UA</span></li>
+          </ol>
+        </div>
+        <div class="reset">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24.0 9.0 A15 15 0 1 1 9.9 18.9" fill="none" stroke="url(#gg)" stroke-width="5.5" stroke-linecap="round"/><path d="M3.3 16.5 L13.0 10.4 L16.5 21.3 Z" fill="url(#gg)" stroke="#F4BE3E" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <b><span>Each month is a</span><span class="gold">clean slate!</span></b>
+        </div>
+      </div>
+      <div class="finale hidden" id="finale"><span class="big gold" id="big"></span></div>
+    </section>
+    <footer class="pills" id="pills">
+      <span class="pill" id="p1"><span class="live" aria-hidden="true"></span><span id="p1t"></span></span>
+      <span class="pill" id="p2"><span id="p2t"></span></span>
+    </footer>
+    <p class="fine" id="fine">* Must be active at the end of the program to receive the incentive.</p>
+  </div>
+</div>
+<script>
+/*DATA-START*/
+const DATA = {"salt":"c2487aa102e51e2c36b363961bb9eb31","updated":"2026-11-18","resultsThrough":"October","r":{"1075debc6028":"EE--","bd9230171362":"NN--","70efc5e4dd34":"NN--","9a8085bd3e0f":"EE--","de426c2d8588":"EN--","6f88eeab7ef3":"EN--","c85cd1d5131e":"EE--","ee7e63147b27":"EN--","17e165ec9c4d":"EE--","d34660f82f2b":"EE--","07b9e8d4f0ca":"EE--","899cfe95cd08":"EN--","3f4a016dddea":"EE--","a11b218df433":"EN--","d569407056a2":"NN--","6b925adb6b12":"NN--","1fc735853031":"EN--","ac2229517233":"EN--","7da75f15a3ad":"NN--","3f85a3a6668f":"EN--","c1c6e02267aa":"NN--","083d1964faa4":"NN--","7a37047b307f":"NN--","8785ebeec795":"NN--","ccc17ee1e5f8":"EN--","00d97cd9daaa":"EE--","11ecbdd39e8d":"EN--","7d147b635dd3":"NN--","01ce16b6d9cb":"EE--","567712a5ec27":"NN--","dd8184128c72":"NN--","f24a789b88a5":"EN--","08b770465541":"EN--","1ea12cd20774":"EN--","2ce74f8fbf83":"NN--","5aa424e8d4e2":"EE--","e67490c311d9":"NN--","7df5189e5f5c":"EN--","a280d9f2ca3c":"EN--","590ffe3ad5f2":"EN--","6fb6f597c87d":"EN--","8fe8440319d2":"EE--","8ba72922ecf9":"NN--","fbdd94e954e9":"EE--","13dc6bc5c7ef":"NN--","cd6c8cb7a21e":"EE--","c00a98d2695d":"EN--","c70055ecd720":"EN--","6ed5a102d61d":"NN--","a0c3c4e7ddcd":"EN--","50d862a37942":"EE--","21a2a1e9b8d1":"EN--","c6d0fd0e9fd8":"NE--","e57986f78e99":"NE--","0234915b90a1":"NN--","8371919d94a6":"NN--","e13cb54620d4":"EE--","b51715fe428f":"NE--","4b84f7e638f5":"EN--","f7daa78244c2":"NN--","2b91f98aa552":"EE--","9e2effd171d4":"EE--","08731c9d6871":"NN--","b0ed2748181a":"NN--","c33237df3ffa":"NN--","6c4bde4150c7":"NN--","91364425dd18":"EN--","d570497c247b":"EN--","dd567a03399f":"EE--","7e3b87d52e76":"NN--","dd9bcb6d4407":"EN--","b0b9e7a98aee":"EN--","cd93348f1cf5":"NN--","fa1afbbd0bd8":"EE--","25633147fa65":"EN--","0fe4c8bde24e":"NN--","93a838487302":"EE--","3b5a653a1f2f":"EE--","e6db00c29bf9":"EE--","3b55da12c009":"NE--","f503d2eab8d0":"NN--","88691a6fc711":"EE--","57bf7a72e477":"EE--","0349b0bbbbb1":"EE--","01a59b1e9373":"NE--","1e49bee4e663":"EN--","badc65bae8a1":"NN--","76773ce895d0":"EN--","28c495c24c12":"EE--","bcd8c52147e0":"EE--","3eba2dc32e4b":"NN--","2b13097ba405":"NN--","f0f643c06b82":"EN--","fad48c0dc6d5":"NE--","27a70a9fe217":"EN--","518e78e8dd8b":"EN--","e109ab60d007":"NN--","a4034b7cf6e5":"EN--","bd14910fd8a1":"NN--","14bc7d20a002":"NN--","70e32679ce5c":"NE--","07e10144cd2b":"NN--","b1603e6d88a5":"NE--","7fc4c46f1d3c":"EE--","36587d38feb5":"EN--","598f99afbae4":"EE--","1cf8ec7bb9dd":"EE--","aa6b9d21d99f":"EN--","2972ee0da837":"EN--","65b7bb6eea87":"NN--","4e0ff68e86bd":"EN--","535366037568":"EN--","de1a6e402b4d":"EN--","f30f2e616f13":"EN--","8c03a3fb1a48":"EE--","26fc90e5bc60":"NN--","e3771c7d44da":"EN--","7c25360efea5":"NE--","6336374182cb":"EE--","2b227592e589":"EE--","f91dee48c854":"EE--","2857cb165c30":"NN--","6d4df004d287":"EN--","fd300ab5917f":"EN--","ea84fd60ca97":"EE--","12f2219e35e8":"EE--","31829938eec7":"EN--","fdddbf123903":"EE--","3ac6b6e0d746":"NE--","a37e2666fa24":"NN--","32dabf907dda":"EE--","91ba6139b28e":"EE--","0876b135d01a":"EN--","b21225e75472":"NN--","56b60d049553":"EN--","50f39ad2fc63":"EN--","a08f099273ec":"EE--","d09db12e0609":"EE--","8a6f522eefc9":"NE--","7d05c6741290":"EE--","4412eff9549d":"NN--","230387fd9917":"NN--","40bd1e6b0e78":"NE--","a96a25c0c00b":"EN--","2ddc1e5fb8d2":"EN--","62e7bb8b07c0":"NN--","a5a3e353f23a":"EN--","b440cfc800c7":"EN--","424024fad826":"EN--","b749aceae06b":"EE--","abaac1ba1a01":"EN--","bd656e42aec1":"EE--","287bb69fcca9":"NN--","c724b30dbc09":"EE--","42ba2022afc7":"NE--","083033ad46bd":"EN--","dd37ee8b9f0e":"EN--","e8ec0b6d4e67":"EN--","cd557b6d9ce2":"NN--","204cd741e09d":"NE--","f8a2754071b2":"EN--","d9560d131030":"EN--","ab35b37c1267":"EN--","c024f47f394d":"EN--","696ce2446ceb":"EN--","aa2bc1c5a2f5":"EE--","f6885ed743a9":"EE--","995427853ab3":"NN--","1bc1c445d476":"EE--","114cf2b53893":"EE--","8f215b8d6eaa":"EN--","cd4e909cc098":"NE--","b3d68c8ea817":"EE--","a52ab5fd7854":"EE--","d17300a9e9e2":"NN--","488ab99ede57":"EE--","f34056490684":"NN--","73f7587fd2ca":"EE--","9689746d951c":"EN--","7146532c888c":"NN--","18e527f4f180":"EE--","2b0b4cfe47b5":"EE--","1511037c78f7":"EN--","a05a41ff0a78":"NN--","d38549d6b6b6":"NN--","cb56739a6bc7":"NE--","ea441d2bafca":"EE--","85e18e3e8cdf":"EE--","c063aa5a86e5":"NN--","3dda0d9b1a4d":"NE--","78406c093d82":"EN--","fb358baa7668":"EE--","c173644cae94":"NN--","184c7709aa7a":"EN--","4ac99df7a738":"EE--","7b6ecba4725e":"EE--","2c7b35e3359c":"EN--","4b53483b0176":"NN--","a9746cae4cf2":"EN--","227ce9329efe":"EN--","54f2eb0ec943":"EE--","f09b561aec72":"EE--","cd53e6962296":"NN--","dbb7ba05f87d":"NN--","41719d52c09c":"NN--","28ed13a99118":"EE--","9cda2cd53ef3":"EE--","f37a47263064":"EN--","2ba12178a4b0":"EE--","09d7b4914b55":"EE--","615c127f824f":"EE--","76de1066780c":"NN--","a8cb326926e0":"NE--","97b89eb2ae41":"EE--","ad62dac51ed5":"NE--","4172cda46104":"EN--","cb09d37ccbd6":"EN--","d5ee7b21e4dd":"EN--","0e95fa2a4746":"NN--","df62262f58e0":"EN--","1966ecb26e86":"NE--","51f2a3663dae":"EE--","81a9337bfb2e":"NE--","086332b1784b":"EE--","e239da16580e":"NN--","4a3d4ae9e968":"EE--","4fa6ec217f8b":"EN--","59b7842f8bf0":"EN--","821ed4289201":"EN--","8bd1ac10b30e":"EE--","ed55f32fa992":"EN--","fa2533aa0581":"NN--","d3538e593efd":"EE--","e4c0f0616ec2":"EE--","2ab7d6c3a7a7":"NN--","b805b63fd276":"NE--","75089a623774":"EE--","0ba79e54f57c":"NE--","a794d2439edd":"NE--","efce32204f9a":"EE--","afe59a9a5748":"EE--","51484565aff1":"EN--","fc4be593beee":"EN--","34ac45446042":"EN--","9fdb7ab39b2c":"EN--","62f9b1baba8b":"EE--","99664d8fdc7d":"EN--","9b4c9701032b":"NE--","f89cd7038cd9":"NN--","34be5146daca":"NE--","1775cd00b436":"NN--","a30ead9a9426":"EE--","a8d8b6795277":"EE--","e62a46d2e706":"EN--","c254f69fa873":"EE--","7cc11dd43f3e":"EE--","82d5c42f576a":"EE--","9a43820160bb":"EN--","bd58b5faed70":"EN--","269df5ffe0d0":"EE--","035ef3c526b1":"NN--","576f783f5257":"EN--","11f9e102f544":"NE--","c4558dfd7e7a":"NE--","0b6aba3c1af7":"EE--","cdc97531cb45":"EN--","a2e5d58ddf54":"EN--","48d5cff87bc3":"EN--","e7b832cb355d":"EN--","bbbb84978692":"EE--","27420a795c5a":"EE--","abd3b8a13c9c":"EE--","cba527a691bc":"EE--","13b42ec01844":"EE--","5d0b3c7ae7cf":"EE--","338fee6c34fd":"EN--","65cc3add2daa":"EE--","169819b4892f":"NN--","e970b6c0a906":"EE--","7ce2efe6b2bf":"EN--","005ca349e45a":"EN--","89415b743074":"NE--","67596973ff66":"NN--","19306382eb48":"NE--","adcea00519f9":"NE--","54d059fcf5d9":"NN--","153ac4d86a6c":"EN--","b717a62dc1ee":"EN--","0439a119d7da":"EE--","d0bc7b7f058d":"EE--","8dc614c2a323":"EN--","24587bb0c4af":"EE--","b927e0fe8b45":"EE--","ebefac790ef8":"EE--","33d79f63deee":"EE--","97cdc5ba1b4e":"EE--","8d8d06597eaf":"NN--","4c734db4a163":"EN--","5998aa783343":"EE--","170a91298e04":"EE--","3b727df52eb5":"EE--","c0fc84b0f4bd":"EE--","2614b5661b38":"EE--","945083f0b291":"NE--","0cf294045867":"EN--","b0d360e8a5ae":"NE--","098549b79504":"EN--","f334251efa61":"EE--","859589db89ec":"NN--","25c1e6f2f5de":"EN--","aee30dbd80cc":"EN--","79d59930e9a2":"EN--","d6dc47363064":"EE--","7131c6c94c48":"EE--","46ec6c91f1fe":"EN--","6df02e37b4b2":"EN--","20d5769f0bd6":"EN--","902630abf431":"EE--","4582cb6e1478":"NN--","8a670a3aaeb6":"EN--","4558b6780968":"EN--","b2752449ac19":"NN--","84692afc753c":"NN--","0161d27de3b1":"EE--","9f4e854127e3":"EN--","7bc039444a36":"EN--","bb4b70285d08":"EN--","13a138cee257":"NN--","7f3e3a255c0c":"EE--","51e70600eec7":"EN--","293548709e6a":"EE--","1bf74fa393c5":"EE--","a794c6dd6b06":"EN--","a34f6f3caab5":"EE--","ef00d4f1bf00":"EE--","59f0b9eb6935":"EE--","cf01b36068c7":"EN--","73f7c1514992":"EE--","91524dd862ab":"EN--","64782e018c7f":"NN--","c17517cd806c":"NE--","ea9be18d0de1":"EN--","f67879c52a02":"EE--","b4cf48764770":"EE--","49db193201d8":"NN--","4af0bcc27627":"EE--","f783203fcef5":"EN--","574e5512316f":"EN--","057b8188b2e0":"EE--","ecc391341019":"EN--","4a4275249c4d":"NN--","c9196f0f9e87":"EE--","66c0a848a466":"EE--","7cf51bf64729":"EE--","65eab5f99dc9":"EE--","c1408e721550":"EE--","de93c5937739":"EE--","013875c93767":"NN--","cde9c88e899e":"EE--","6cf8ed90dc9e":"NE--","8a81a2230185":"EE--","79f00977ad4c":"EN--","fadb3020da64":"EE--","496112331b4f":"NE--","e0971ecdb6d5":"EN--","9bbf2c6ddaed":"NN--","3f27f1f8aac2":"NE--","ef4079ec35ec":"EE--","dc2ced12bb16":"EN--","b7568bfe6906":"NN--","8639e3937eba":"EN--","945c0f341e24":"EE--","c2ad66dea361":"NN--","94cb8d160b4c":"NE--","b20b3139e0e6":"EN--","6b10627eedee":"EE--","9df29b048561":"EN--","29f6e658219c":"EN--","bcd60b3d7d62":"EE--","16088ae9a14e":"NE--","34210fa41f02":"NN--","e33efc0ad252":"EN--","e1bc66279952":"EN--","49c660e5e782":"EN--","589ab9822520":"EN--","4170a9ef3f34":"EN--","c99ff4867684":"NN--","57fc8df39320":"EE--","c2cc8844bdca":"EN--","55c08b6cf346":"EE--","75bdb1f7fc31":"EE--","da120254e2be":"NE--","42a71dae1184":"NE--","169b8dd436dd":"EN--","2fd614468230":"NE--","7e625b8d802d":"NN--","3a4a70e23624":"EN--","1da3e3692952":"EN--","9cbb11e7a40d":"NN--","6213b9108245":"EN--","dd14d00eb472":"EE--","16e378eccff0":"EN--","8373f53d1e3c":"NN--","8939caf872b2":"NN--","4cb127dae71d":"EE--","0e09086b5dbe":"EN--","9996280dcc21":"NN--","7a5b2fb01cd3":"EN--","7af6cd52b985":"EN--","e38dc0794609":"EE--","10a7b3e6834c":"EE--","5c77a5d937a0":"EN--","fb9f0b1f1179":"NN--","c750ab271e9c":"EE--","114404c6940d":"NN--","3270fc3a4b5e":"EN--","470e40b528aa":"NN--","0ff3fa2eb88f":"EN--","631db279127b":"EN--","41b6b842e2ca":"EE--","8a3f1185b2ac":"NE--","e0db1124a21a":"EN--","9c08aeccaacf":"NN--","ddc798b4c225":"NE--","08ad6cd85f03":"NN--","ea29831685b7":"NN--","6719dae18874":"NN--","857d72bfb93d":"EN--","ecdfb9b96b67":"EE--","82d8b1711652":"NE--","95f4c8a2c582":"NN--","dbe2a50f7bad":"NN--","9d58412e8ecb":"EN--","b3b738f69005":"NN--","c1871f3e87b9":"EE--","2c18fab3ef66":"EE--","3fae69e90fc2":"EN--","47e79bb52195":"NE--","36d73b7c41e7":"NN--","b4f9eb7eac33":"EE--","2c1682a278ec":"EE--","1a26d3077fa1":"EE--","a7f8f5df4d76":"NN--","64dc3d153e20":"NN--","1d0b794cb5c8":"EE--","8fa9f44d5223":"EE--","c8d5acc1a863":"NE--","57ca39dc0ea0":"EE--","2b95820ff8d8":"EE--","b7fa7704dd99":"NN--","73d019d66c9f":"NN--","1ce291f413e1":"EE--","2a3b183f11b0":"EE--","cc949796e052":"NE--","e64ca0f05915":"EE--","bcaa78a3b834":"EN--","b2ee2d38829c":"NN--","ce25f84e2a42":"EN--","75f5d6ebc494":"NN--","878eb3c1c6dd":"EE--","df04b38ea02c":"EN--","5d4377e4ded6":"EN--","b847965bae3e":"EN--","cbd207779e60":"NE--","8fc3ed2efb94":"NN--","48779d102bf3":"NE--","5b8b1fc41e46":"EE--","abb567e273ca":"EE--","00ede0c9708a":"EN--","9a2450b69a1e":"NN--","6d25596325a0":"EE--","b23f09ab0615":"NE--","a135ca1b6b9d":"EN--","93d1932c3e5f":"NN--","51018b50fa40":"EE--","76fdbf6ae3dc":"NE--","9e8e69c2c124":"EN--","bfa8ea54f46c":"EN--","8771caeb87b8":"NN--","e5703f8f8ac7":"EN--","9ddbbd4c3e7a":"EE--","db6419fd9678":"EN--","71b91ffa63db":"EN--","82d916fba089":"EE--","0e3c22b005f7":"EE--","11f037978767":"NN--","a3cedf249d4b":"NN--","b44cd6ea3912":"EN--","c4a6d4e95aeb":"NN--","af39474cfbe4":"EE--","e217c45bec44":"EN--","b98f37e24c60":"EN--","2657db8a1f80":"EN--","788f43ed7a34":"NE--","948ff62685b5":"NN--","a6d744274c19":"EN--","de63ebd9a7a5":"NN--","5eff5f3d0fa3":"EN--","39ee1e04bc03":"EN--","df173bf386e0":"EN--","67a69b87ffd5":"EN--","550ccd4871ff":"EN--","4b3f03399d5f":"NN--","3d7a817678b3":"NN--","385e49cc529a":"NN--","fcdd49e96763":"NE--","60b52bdbb320":"EN--","d611dc175703":"EN--","37eb39f2e9ba":"EN--","6d5025e37798":"NE--","fddb6ba099be":"EN--","f23079e6f820":"EN--","7522d85897c7":"NN--","77d91fcd17d6":"EN--","d816cfd0f39f":"EE--","fa7658d756a6":"NN--","c80a619148ad":"NN--","c07029c84146":"EE--","52f079fe3cf5":"EN--","c1fff40131e2":"NE--","e1e33551e21a":"EN--","11dd14c99b1c":"EE--","945a56e92bb2":"EN--","9250ba764efd":"EE--","0e59363ac203":"NN--","d1ea048c00ec":"NN--","c8051ad08449":"EE--","7ac5d09723f3":"NE--","47b54e7ebf14":"EE--","afd84dee5156":"EN--","3faac842549e":"NN--","82ab802bc850":"NN--","2687731d1929":"EN--","b489d56fef7e":"NN--","e44351c170f8":"EE--","452064b131a1":"NN--","40d4bbea3be2":"EN--","20666a0dce91":"EE--","18bac8e836e3":"EN--","880424ab3742":"EN--","c84ef207f24d":"EN--","19b410b9aa2b":"EN--","5aa10df82ead":"EN--","0a5c2cc7d4ea":"EN--","47b5902bfcf8":"EE--","f74adf9b8c6d":"NN--","8ef63bd708f3":"EN--","d7e6968e9a87":"EN--","ba964f7fe40c":"NE--","b887912317a7":"NN--","2d9d8ff801b6":"NE--","765d7a8a05ea":"EN--","25e2a2744654":"NN--","a62efb7f857d":"NN--","3a4661615143":"EN--","7c0d7a40f699":"NN--","a7eb20c2ee56":"EN--","2a36303c34cc":"EN--"}};
+/*DATA-END*/
+
+const params = new URLSearchParams(window.location.search);
+// Case-insensitive param reader (WorkJam or admins may vary capitalisation)
+const PARAM_MAP = {}; params.forEach((v,k)=>{ const lk=k.toLowerCase(); if(!(lk in PARAM_MAP)) PARAM_MAP[lk]=v; });
+const getParam = k => { const v = PARAM_MAP[k.toLowerCase()]; return (v===undefined || v==='' || /^\{\{.*\}\}$/.test(v.trim())) ? null : v; };
+const vars = {
+  externalLocationId: getParam('externalLocationId') || null,
+  externalLocationCode: getParam('externalLocationCode') || null,
+  address: getParam('address') || null,
+  city: getParam('city') || null,
+  stateOrProvince: getParam('stateOrProvince') || null,
+  country: getParam('country') || null,
+  zipCode: getParam('zipCode') || null,
+  externalRegionId: getParam('externalRegionId') || null,
+  externalRegionCode: getParam('externalRegionCode') || null,
+  employeeId: getParam('employeeId') || null,
+  employeeCode: getParam('employeeCode') || null,
+  username: getParam('username') || null,
+  language: getParam('language') || 'en',
+  aspectRatio: getParam('aspectRatio') || 'standard',
+  // custom: QA-only date override (ISO timestamp). Ignored if invalid.
+  previewDate: getParam('previewDate') || null,
+  // custom: admin test mode, shows what identity values arrived (masked)
+  debug: getParam('debug') === '1'
+};
+const RATIOS = { standard: '4 / 3', square: '1 / 1', landscape: '16 / 9', portrait: '9 / 16' };
+const RATIO_NUM = { standard: 4/3, square: 1, landscape: 16/9, portrait: 9/16 };
+const frame = document.querySelector('.frame');
+frame.style.aspectRatio = RATIOS[vars.aspectRatio] || RATIOS.standard;
+function fit(){
+  const r = RATIO_NUM[vars.aspectRatio] || RATIO_NUM.standard;
+  const w = Math.min(document.documentElement.clientWidth || 520, 520, (window.innerHeight || 9999) * r);
+  frame.style.width = Math.max(200, Math.floor(w)) + 'px';
+}
+fit(); window.addEventListener('resize', fit);
+
+// Compact SHA-256 (ASCII input) so the lookup works on any host, including file://
+function sha256(s){function rr(v,a){return(v>>>a)|(v<<(32-a))}var P=Math.pow,M=P(2,32),i,j,out='',w=[],L=s.length*8,h=[],k=[],n=0,C={};
+for(var c=2;n<64;c++){if(!C[c]){for(i=0;i<313;i+=c)C[i]=c;h[n]=(P(c,.5)*M)|0;k[n++]=(P(c,1/3)*M)|0}}
+h=h.slice(0,8);s+='\x80';while(s.length%64-56)s+='\x00';for(i=0;i<s.length;i++){j=s.charCodeAt(i);w[i>>2]|=j<<((3-i)%4)*8}
+w[w.length]=(L/M)|0;w[w.length]=L;for(j=0;j<w.length;){var W=w.slice(j,j+=16),o=h;h=h.slice(0,8);
+for(i=0;i<64;i++){var a=W[i-15],b=W[i-2],A=h[0],E=h[4];var t1=h[7]+(rr(E,6)^rr(E,11)^rr(E,25))+((E&h[5])^(~E&h[6]))+k[i]+(W[i]=i<16?W[i]:(W[i-16]+(rr(a,7)^rr(a,18)^(a>>>3))+W[i-7]+(rr(b,17)^rr(b,19)^(b>>>10)))|0);
+var t2=(rr(A,2)^rr(A,13)^rr(A,22))+((A&h[1])^(A&h[2])^(h[1]&h[2]));h=[(t1+t2)|0].concat(h);h[4]=(h[4]+t1)|0}
+for(i=0;i<8;i++)h[i]=(h[i]+o[i])|0}for(i=0;i<8;i++)for(j=3;j+1;j--){var x=(h[i]>>(j*8))&255;out+=(x<16?'0':'')+x.toString(16)}return out}
+
+// Turn a raw value into lookup candidates: "1822986", "01822986", "1822986.0", "E1822986", "kohls-1822986"
+function idCandidates(v){
+  if(!v) return [];
+  v = String(v).trim(); const out = new Set();
+  const plain = v.replace(/\.0+$/,'');
+  if(/^\d+$/.test(plain)) out.add(plain.replace(/^0+(?=\d)/,''));
+  (v.match(/\d{5,}/g) || []).forEach(x => out.add(x.replace(/^0+(?=\d)/,'')));
+  return [...out];
+}
+function keyFor(n){ return sha256(DATA.salt+':'+n).slice(0,12); }
+let matchedBy = null;
+function lookupUser(){
+  if(!DATA.salt) return null;
+  for(const src of ['employeeId','employeeCode','username']){
+    for(const n of idCandidates(vars[src])){
+      const r = DATA.r[keyFor(n)];
+      if(r){ matchedBy = src; return r; }
+    }
+  }
+  return null;
+}
+const record = lookupUser();   // e.g. "EN--" : E earned, N not earned, - not posted yet
+
+const MONTHS = [
+  {y:2026,m:8,key:'sep',short:'Sept',full:'September'},{y:2026,m:9,key:'oct',short:'Oct',full:'October'},
+  {y:2026,m:10,key:'nov',short:'Nov',full:'November'},{y:2026,m:11,key:'dec',short:'Dec',full:'December'}];
+const START = new Date(2026,8,1), EARN_END = new Date(2027,0,1), SHOW_END = new Date(2027,1,1);
+const pd = vars.previewDate ? new Date(vars.previewDate) : null;
+const offset = (pd && !isNaN(pd)) ? pd.getTime() - Date.now() : 0;
+const now = () => new Date(Date.now() + offset);
+
+const $ = id => document.getElementById(id);
+const show = (el,on) => el.classList.toggle('hidden',!on);
+const hrWord = n => n===1 ? 'hour' : 'hours';
+const dayWord = n => n===1 ? 'day' : 'days';
+let lastKey = '';
+
+function confetti(){
+  const box = $('confetti'); if(box.childElementCount) return;
+  const cols = ['#F9CB4E','#F07C22','#FFFFFF','#2BB3B1','#FFF4C9','#E5534B','#4FA3E0'];
+  for(let i=0;i<42;i++){
+    const c = document.createElement('i');
+    const left = (i*37)%100 + ((i*13)%7)/7;              // spread evenly, deterministic
+    c.style.left = left+'%';
+    c.style.background = cols[i%cols.length];
+    c.style.setProperty('--d',(2.6+(i%5)*.35)+'s');
+    c.style.setProperty('--w',((i%9)*.09)+'s');
+    c.style.setProperty('--x',(((i%7)-3)*9)+'px');
+    c.style.setProperty('--r',(360+(i%4)*180)*(i%2?1:-1)+'deg');
+    if(i%3===0){c.style.width='6px';c.style.height='6px';c.style.borderRadius='50%';}
+    box.appendChild(c);
+  }
+}
+
+function card(m,i,state,daysLeft){
+  const li = document.createElement('li');
+  li.className = `mo t-${m.key} ${state}`;
+  const map = {
+    earned:  {b:'1', em:'hour',  rib:'Earned!',      aria:`${m.full}: 1 hour earned`},
+    none:    {b:'0', em:'hours', rib:'Not earned',   aria:`${m.full}: 0 hours earned`},
+    current: {b:'1', em:'hour',  rib:`${daysLeft} ${dayWord(daysLeft)} left`, aria:`${m.full}: in progress, 1 hour up for grabs, ${daysLeft} ${dayWord(daysLeft)} left`},
+    future:  {b:'1', em:'hour',  rib:'Up next',      aria:`${m.full}: up next`},
+    pending: {b:'?', em:'hour',  rib:'Pending', aria:`${m.full}: results coming soon`}
+  }[state];
+  li.setAttribute('aria-label', map.aria);
+  li.innerHTML = `<div class="mo-in" aria-hidden="true">
+      <span class="mo-name"><span class="short">${m.short}</span><span class="full">${m.full}</span></span>
+      <span class="mo-mid"><svg class="badge" viewBox="0 0 48 48"><use href="#clock"/></svg>
+        <span class="hrs"><b class="${state==='earned'?'gold':''}">${map.b}</b><em>${map.em}</em></span></span>
+      <span class="ribbon">${map.rib}</span></div>${state==='earned'?'<span class="sheen" aria-hidden="true"></span>':''}`;
+  return li;
+}
+
+function render(){
+  const t = now();
+  const codes = record || '----';
+  const earned = [...codes].filter(c=>c==='E').length;
+  const curIdx = MONTHS.findIndex(x=>t.getFullYear()===x.y && t.getMonth()===x.m);
+  const phase = t < START ? 'pre' : t < EARN_END ? 'active' : t < SHOW_END ? 'complete' : 'closed';
+  const lastDay = curIdx>=0 ? new Date(MONTHS[curIdx].y, MONTHS[curIdx].m+1, 0).getDate() : 0;
+  const daysLeft = curIdx>=0 ? lastDay - t.getDate() + 1 : 0;   // includes today
+  const key = [phase,curIdx,daysLeft,t.toDateString()].join('|');
+  if(key===lastKey) return; lastKey = key;
+
+  const frame = $('frame');
+  frame.className = 'frame t-' + (phase==='active' ? MONTHS[curIdx].key : phase==='pre' ? 'sep' : 'jan');
+  let view = 'none', party = false, pills = false, fine = false;
+  const set = (chip,a,b,sub) => { $('chipText').textContent=chip; $('h1a').textContent=a; $('h1b').textContent=b; $('sub').textContent=sub; };
+
+  if(phase==='pre'){
+    const d = Math.ceil((START - t)/86400000);
+    set('Coming soon','Get ready to earn','Recognition hours!','Earn 1 hour every month you hit both goals, September through December.');
+    view='goals'; pills=true;
+    $('p1t').innerHTML = `Starts in <b>${d}</b> ${dayWord(d)}`; $('p2t').innerHTML = `<b>4</b> hours up for grabs`;
+  } else if(phase==='active'){
+    const m = MONTHS[curIdx], isFinal = curIdx===3, left = 4-curIdx;
+    const chip = isFinal ? 'Final month!' : `${m.full} 2026`;
+    if(earned>0){
+      set(chip, "You've earned", `${earned} ${hrWord(earned)}!`,
+          isFinal ? 'of Associate Recognition Time. December is your last chance to earn one more!'
+                  : 'of Associate Recognition Time. Keep showing up! More opportunities to earn await you.');
+      view='months'; party=true;
+    } else {
+      set(chip, "There's still time", 'to earn hours!',
+          isFinal ? 'December is the final month. Hit both goals to earn 1 hour of Associate Recognition Time.'
+                  : 'Hit both goals this month to earn 1 hour of Associate Recognition Time.');
+      view='goals';
+    }
+    pills=true; fine=earned>0;
+    $('p1t').innerHTML = daysLeft===1 ? `<b>Last day</b> to earn in ${m.full}!` : `<b>${daysLeft}</b> ${dayWord(daysLeft)} left in ${m.full}`;
+    $('p2t').innerHTML = isFinal ? `<b>Final</b> month to earn` : `<b>${left}</b> months left to earn`;
+  } else if(phase==='complete'){
+    if(earned>0){
+      set('Program complete','Congratulations!',`You earned ${earned} ${hrWord(earned)}!`,
+          codes[3]==='-' ? 'December results will appear here once they are posted.' : 'of Associate Recognition Time. Thank you for showing up!');
+      view='months'; party=true; fine=true;
+    } else if(record && codes[3]==='-'){
+      set('Program complete','Final results','Coming soon!','December results will appear here once they are posted.');
+    } else {
+      set('Program complete','Happy','New Year!','The attendance program is over. Thanks for being part of the pilot!');
+      view='finale'; $('big').textContent='2027'; party=true;
+    }
+  } else {
+    set('Program ended','Thank you','for showing up!','The attendance program has ended. Happy New Year!');
+    view='finale'; $('big').textContent='2027';
+  }
+
+  const months = $('months');
+  if(view==='months'){
+    months.innerHTML = '';
+    MONTHS.forEach((m,i)=>{
+      const c = codes[i];
+      let st = c==='E' ? 'earned' : c==='N' ? 'none'
+             : (phase==='active' && i===curIdx) ? 'current'
+             : (phase==='active' && i>curIdx) ? 'future' : 'pending';
+      months.appendChild(card(m,i,st,daysLeft));
+    });
+  }
+  show(months,view==='months'); show($('goals'),view==='goals'); show($('finale'),view==='finale');
+  show($('pills'),pills); show($('fine'),fine);
+  if(party) confetti();
+}
+render();
+setInterval(render, 60000);   // days-remaining only; re-checks for day/month rollover each minute
+
+// Admin test mode: add &debug=1 to the widget URL. Digits are masked so IDs are never shown in full.
+if(vars.debug){
+  const mask = v => v==null ? '(not sent)' : String(v).replace(/\d(?=\d{2})/g,'•');
+  const d = document.createElement('div');
+  d.style.cssText='position:absolute;left:6px;right:6px;bottom:6px;z-index:9;font:11px/1.35 ui-monospace,Menlo,monospace;background:rgba(0,0,0,.82);color:#fff;padding:6px 8px;border-radius:8px;white-space:pre-wrap;word-break:break-all';
+  d.textContent = `employeeId: ${mask(PARAM_MAP['employeeid'])}\nemployeeCode: ${mask(PARAM_MAP['employeecode'])}\nmatched: ${matchedBy ? 'yes, via '+matchedBy : 'no'}   data built: ${DATA.updated}   results through: ${DATA.resultsThrough || 'none'}`;
+  document.getElementById('frame').appendChild(d);
+}
+</script>
+</body>
+</html>
